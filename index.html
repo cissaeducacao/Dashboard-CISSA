@@ -1,0 +1,1481 @@
+<!DOCTYPE html>
+<html lang="pt-pt">
+<head>
+    <meta charset="UTF-8">
+    <title>CISSA - Plataforma de Soluções Educacionais & Analytics</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.9/dist/chart.umd.min.js"
+            integrity="sha384-b0GXujLkk9eYYSmcSfoyZbfyElGAQnDyY0skCHSG6w3JgTMFnz11ggrTAr7seu9f"
+            crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0/dist/chartjs-plugin-datalabels.min.js"
+            integrity="sha384-M00GJNq2IplZCB3+JOJEl2H0un45ODvqJSSnIc4DvG8gPn8RX5ToITFXcv3AvOx5"
+            crossorigin="anonymous"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"
+            integrity="sha384-vtjasyidUo0kW94K5MXDXntzOJpQgBKXmE7e2Ga4LG0skTTLeBi97eFAXsqewJjw"
+            crossorigin="anonymous"></script>
+    <script src="https://accounts.google.com/gsi/client" async></script>
+    <style>
+        :root { 
+            --bg: #E8E8E8;          
+            --sidebar: #232323;     
+            --orange: #D25600;      
+            --blue-dark: #375B95;   
+            --border: #d1d1d1; 
+            --card: #ffffff; 
+            --text-main: #232323;   
+            --text-muted: #555555;
+            --item-bg: #fdfdfd;
+        }
+        body.dark-mode {
+            --bg: #121212;
+            --sidebar: #1a1a1a;
+            --border: #333333;
+            --card: #232323;        
+            --blue-dark: #375B95;   
+            --orange: #D25600;      
+            --text-main: #E8E8E8;   
+            --text-muted: #999999;
+            --item-bg: #1e1e1e;
+        }
+        body { font-family: 'DM Sans', sans-serif; margin: 0; display: block; height: 100vh; background: var(--bg); color: var(--text-main); overflow: hidden; transition: background 0.3s, color 0.3s; }
+        .sidebar-container { position: absolute; left: 0; top: 0; height: 100vh; width: 40px; background: var(--sidebar); border-right: 2px solid var(--orange); z-index: 1000; overflow: hidden; transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1); box-shadow: 2px 0 10px rgba(0,0,0,0.2); }
+        .sidebar-container:hover { width: 320px; }
+        .sidebar-indicator { position: absolute; top: 20px; left: 12px; color: var(--orange); font-size: 1.5rem; transition: opacity 0.3s; user-select: none; pointer-events: none; }
+        .sidebar-container:hover .sidebar-indicator { opacity: 0; }
+        .sidebar-inner { width: 320px; height: 100%; padding: 20px; box-sizing: border-box; overflow-y: auto; opacity: 0; transition: opacity 0.3s; color: #E8E8E8; }
+        .sidebar-container:hover .sidebar-inner { opacity: 1; }
+        .sidebar-inner h2 { font-size: 0.85rem; color: var(--orange); text-transform: uppercase; margin-bottom: 15px; margin-top: 0; letter-spacing: 0.5px; }
+        .sidebar-inner h2.section-title { margin-top: 30px; border-top: 1px solid #444; padding-top: 15px; }
+        .project-btn { background: rgba(255, 255, 255, 0.05); border: none; color: #E8E8E8; padding: 10px 12px; border-radius: 8px; cursor: pointer; text-align: left; transition: 0.3s; font-weight: 500; margin-bottom: 6px; position: relative; width: 100%; font-size: 0.85rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-family: 'DM Sans', sans-serif; }
+        .project-btn:hover { background: rgba(255, 255, 255, 0.1); }
+        .project-btn.active { background: var(--orange); color: white; font-weight: bold; }
+        .project-btn.general { border: 1px solid var(--orange); background: transparent; }
+        .project-btn.general.active { background: var(--orange); }
+        .project-btn.theme-toggle { border: 1px solid #555; background: transparent; text-align: center; margin-top: 20px; font-weight: bold; }
+        .project-btn.theme-toggle:hover { background: rgba(255,255,255,0.1); }
+        .accordion-btn { background: transparent; border: 1px solid #555; color: #E8E8E8; padding: 10px 12px; border-radius: 8px; cursor: pointer; text-align: left; font-weight: bold; margin-bottom: 6px; position: relative; width: 100%; display: flex; justify-content: space-between; align-items: center; transition: 0.3s; font-size: 0.85rem; font-family: 'DM Sans', sans-serif;}
+        .accordion-btn:hover { background: rgba(255, 255, 255, 0.05); }
+        .accordion-btn.open .arrow { transform: rotate(180deg); }
+        .arrow { font-size: 0.7rem; transition: transform 0.3s; color: var(--orange); }
+        .accordion-content { display: none; flex-direction: column; gap: 4px; padding-left: 12px; border-left: 2px solid #555; margin-left: 8px; margin-bottom: 10px; }
+        .accordion-content.show { display: flex; }
+        .sub-group-title { font-size: 0.65rem; color: #888; text-transform: uppercase; margin-top: 10px; margin-bottom: 2px; padding-left: 8px; letter-spacing: 0.5px; font-weight: bold; }
+        .sub-btn { background: transparent; border: none; color: #aaa; padding: 8px; text-align: left; cursor: pointer; font-size: 0.8rem; border-radius: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-family: 'DM Sans', sans-serif;}
+        .sub-btn:hover { background: rgba(255,255,255,0.05); color: #fff; }
+        .sub-btn.active { color: var(--orange); font-weight: bold; background: rgba(210, 86, 0, 0.1); }
+        .main { margin-left: 40px; padding: 25px; height: 100vh; box-sizing: border-box; overflow-y: auto; display: flex; flex-direction: column; }
+        .header-title { text-align: center; margin-bottom: 25px; padding-bottom: 15px; border-bottom: 3px solid var(--orange); }
+        .header-title h1 { margin: 0; color: var(--blue-dark); text-transform: uppercase; letter-spacing: 2px; font-size: 1.6rem; transition: color 0.3s; font-weight: 700; }
+        body.dark-mode .header-title h1 { color: var(--orange); }
+        .page-section { display: flex; flex-direction: column; flex: 1; }
+        .page-section.hidden { display: none !important; }
+        .tabs { display: flex; gap: 10px; margin-bottom: 20px; border-bottom: 2px solid var(--border); padding-bottom: 10px; flex-wrap: wrap; justify-content: center; }
+        .tab-btn { font-family: 'DM Sans', sans-serif; padding: 8px 18px; border: none; background: var(--card); cursor: pointer; border-radius: 6px; font-weight: bold; color: var(--text-muted); font-size: 0.85rem; border: 1px solid var(--border); transition: 0.3s; }
+        .tab-btn:hover { background: var(--border); }
+        .tab-btn.active { background: var(--blue-dark); color: white; border-color: var(--blue-dark); }
+        .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 15px; margin-bottom: 25px; }
+        .kpi-card { background: var(--card); padding: 15px; border-radius: 12px; border: 1px solid var(--border); text-align: center; display: flex; flex-direction: column; justify-content: center; transition: 0.3s; box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
+        .kpi-card:hover { transform: translateY(-3px); box-shadow: 0 4px 8px rgba(0,0,0,0.1); cursor: help; }
+        .kpi-card span { font-size: 0.6rem; color: var(--text-muted); text-transform: uppercase; font-weight: 700; line-height: 1.2; min-height: 25px; letter-spacing: 0.5px; }
+        .kpi-card div { font-size: 1.6rem; font-weight: 700; color: var(--blue-dark); margin-top: 8px; }
+        .kpi-card.highlight div { color: var(--orange); }
+        .chart-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; }
+        .chart-card { background: var(--card); padding: 20px; border-radius: 12px; border: 1px solid var(--border); min-height: 380px; display: flex; flex-direction: column; transition: 0.3s; box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
+        .chart-card h3 { margin: 0 0 15px 0; font-size: 0.95rem; color: var(--blue-dark); text-transform: uppercase; border-bottom: 1px solid var(--border); padding-bottom: 10px; font-weight: 700; }
+        body.dark-mode .chart-card h3 { color: var(--orange); }
+        .full-width { grid-column: span 2; width: 100%; }
+        .canvas-wrapper { flex: 1; position: relative; min-height: 0; }
+        .comment-list { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 20px; max-height: 380px; overflow-y: auto; transition: 0.3s; box-shadow: inset 0 2px 4px rgba(0,0,0,0.02); }
+        .comment-item { padding: 15px; border-bottom: 1px solid var(--border); font-size: 0.85rem; font-style: italic; color: var(--text-main); background: var(--item-bg); margin-bottom: 10px; border-radius: 8px; transition: 0.3s; }
+        .comment-item strong { color: var(--orange); text-transform: uppercase; font-size: 0.75rem; display: block; margin-bottom: 6px; font-weight: 700; }
+        .portfolio-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 25px; margin-top: 10px; }
+        .portfolio-card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 30px; transition: 0.3s; border-top: 5px solid var(--blue-dark); display: flex; flex-direction: column; box-shadow: 0 2px 10px rgba(0,0,0,0.03); }
+        .portfolio-card:hover { transform: translateY(-5px); box-shadow: 0 8px 25px rgba(0,0,0,0.1); border-top-color: var(--orange); }
+        .portfolio-tag { font-size: 0.75rem; background: rgba(55, 91, 149, 0.1); color: var(--blue-dark); padding: 5px 10px; border-radius: 6px; font-weight: bold; align-self: flex-start; margin-bottom: 15px; text-transform: uppercase; letter-spacing: 0.5px; }
+        body.dark-mode .portfolio-tag { color: #8bb4f7; background: rgba(139, 180, 247, 0.1); }
+        .portfolio-card h3 { color: var(--blue-dark); margin: 0 0 12px 0; font-size: 1.4rem; }
+        body.dark-mode .portfolio-card h3 { color: var(--orange); }
+        .portfolio-card p { color: var(--text-muted); font-size: 0.95rem; line-height: 1.6; flex-grow: 1; margin: 0 0 20px 0; }
+        .portfolio-features { list-style: none; padding: 0; margin: 0; border-top: 1px solid var(--border); padding-top: 15px; }
+        .portfolio-features li { color: var(--text-main); font-size: 0.85rem; margin-bottom: 8px; display: flex; align-items: flex-start; }
+        .portfolio-features li::before { content: '•'; color: var(--orange); font-weight: bold; font-size: 1.2rem; margin-right: 8px; line-height: 1.2; }
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+
+<!-- ── LOGIN OVERLAY ──────────────────────────────────────────────────────── -->
+<div id="login-overlay" style="position:fixed;top:0;left:0;width:100%;height:100%;background:var(--bg);z-index:9999;display:flex;align-items:center;justify-content:center;">
+    <div style="background:var(--card);border-radius:16px;padding:48px 40px;max-width:400px;width:90%;text-align:center;box-shadow:0 8px 40px rgba(0,0,0,0.15);border:1px solid var(--border);">
+        <div style="width:64px;height:64px;background:var(--orange);border-radius:14px;margin:0 auto 20px;display:flex;align-items:center;justify-content:center;">
+            <span style="color:white;font-size:2rem;font-weight:900;letter-spacing:-1px;">C</span>
+        </div>
+        <h1 style="margin:0 0 6px;font-size:1.5rem;color:var(--text-main);font-weight:700;">Dashboard CISSA</h1>
+        <p style="color:var(--text-muted);margin:0 0 28px;font-size:0.9rem;line-height:1.5;">Acesso restrito a contas<br><strong style="color:var(--text-main);">@cesar.org.br</strong></p>
+        <button onclick="signIn()" id="btn-signin" style="background:var(--orange);color:white;border:none;padding:14px 24px;border-radius:8px;font-size:0.95rem;cursor:pointer;font-family:'DM Sans',sans-serif;font-weight:600;width:100%;display:flex;align-items:center;justify-content:center;gap:10px;transition:opacity 0.2s;" onmouseover="this.style.opacity='0.85'" onmouseout="this.style.opacity='1'">
+            <svg width="20" height="20" viewBox="0 0 48 48"><path fill="#fff" d="M44.5 20H24v8.5h11.8C34.7 33.9 30.1 37 24 37c-7.2 0-13-5.8-13-13s5.8-13 13-13c3.1 0 5.9 1.1 8.1 2.9l6.4-6.4C34.6 4.1 29.6 2 24 2 11.8 2 2 11.8 2 24s9.8 22 22 22c11 0 21-8 21-22 0-1.3-.2-2.7-.5-4z"/></svg>
+            Entrar com Google
+        </button>
+        <div id="login-error" style="display:none;margin-top:16px;color:#c0392b;font-size:0.85rem;background:rgba(192,57,43,0.08);padding:10px 14px;border-radius:6px;text-align:left;"></div>
+        <p style="color:var(--text-muted);font-size:0.75rem;margin:20px 0 0;">Plataforma de Analytics — CISSA</p>
+    </div>
+</div>
+<!-- ─────────────────────────────────────────────────────────────────────── -->
+
+<div class="sidebar-container" id="sidebar">
+    <div class="sidebar-indicator">≡</div>
+    <div class="sidebar-inner">
+        <h2>Menu Principal</h2>
+        <button class="project-btn general active" id="btn-page-dash" onclick="switchPage('dash')">Dashboard Interativo</button>
+        <button class="project-btn general" id="btn-page-portfolio" onclick="switchPage('portfolio')">Portfólio Educacional</button>
+        <h2 class="section-title">Análise de Eventos</h2>
+        <button class="project-btn general active" id="btn-all" onclick="switchScope('all')">Geral (Todos os Eventos)</button>
+        <div id="dynamic-editions" style="margin-top: 15px;"></div>
+        <button class="project-btn theme-toggle" onclick="toggleDarkMode()">Alternar Tema</button>
+    </div>
+</div>
+
+<div class="main">
+    <div id="page-dash" class="page-section">
+        <div class="header-title">
+            <h1 id="top-title">VISÃO GERAL (TODOS OS EVENTOS)</h1>
+        </div>
+        <div class="tabs" id="tab-container">
+            <button class="tab-btn active" id="tab-geral" onclick="switchView('geral')">Visão Demográfica</button>
+            <button class="tab-btn" id="tab-ativos" onclick="switchView('ativos')">Participantes e Engajamento</button>
+            <button class="tab-btn" id="tab-abandon" onclick="switchView('abandono')">Evasão e Retenção</button>
+            <button class="tab-btn" id="tab-eval" onclick="switchView('avaliacao')">Avaliação de Reação</button>
+            <button class="tab-btn hidden" id="tab-banca" onclick="switchView('banca')">Resultados da Banca</button>
+        </div>
+        <div class="kpi-grid" id="kpi-grid">
+            <div class="kpi-card" style="grid-column: span 3;"><span>Status</span><div style="font-size: 1.1rem; color: var(--text-muted);">Carregando dados…</div></div>
+        </div>
+        <div id="dashboard-content">
+            <div id="data-warning" class="hidden" style="background: rgba(210, 86, 0, 0.1); border: 1px solid var(--orange); color: var(--text-main); padding: 15px; border-radius: 8px; margin-bottom: 20px; text-align: center;">
+                <strong style="color: var(--orange); font-size: 1.1rem;">Aviso: Divergência de Dados Detectada</strong><br>
+                Foram contados <strong><span id="warn-realizados">0</span></strong> participantes na Lista de Presença, mas apenas <strong><span id="warn-encontrados">0</span></strong> possuem dados de Inscrição cruzados.<br>
+                <small style="opacity: 0.8;">A aba "Dados estudantes" pode ter sido preenchida com respostas de outra edição.</small>
+            </div>
+            <div class="chart-grid" id="charts-container">
+                <div class="chart-card" id="card-idade"><h3>Distribuição Etária</h3><div class="canvas-wrapper"><canvas id="c-idade"></canvas></div></div>
+                <div class="chart-card" id="card-genero"><h3>Identidade de Género</h3><div class="canvas-wrapper"><canvas id="c-genero"></canvas></div></div>
+                <div class="chart-card" id="card-raca"><h3>Raça, Cor e Etnia</h3><div class="canvas-wrapper"><canvas id="c-raca"></canvas></div></div>
+                <div class="chart-card" id="card-renda"><h3>Faixa de Renda</h3><div class="canvas-wrapper"><canvas id="c-renda"></canvas></div></div>
+                <div class="chart-card" id="card-pcd-bin"><h3>Inclusão PCD (Geral)</h3><div class="canvas-wrapper"><canvas id="c-pcd-bin"></canvas></div></div>
+                <div class="chart-card" id="card-pcd-type"><h3>Inclusão PCD (Tipos)</h3><div class="canvas-wrapper"><canvas id="c-pcd-type"></canvas></div></div>
+                <div class="chart-card" id="card-soc"><h3>Apoio Social</h3><div class="canvas-wrapper"><canvas id="c-soc"></canvas></div></div>
+                <div class="chart-card full-width" id="card-edu"><h3>Nível de Escolaridade</h3><div class="canvas-wrapper"><canvas id="c-edu"></canvas></div></div>
+                <div class="chart-card" id="card-ativ"><h3>Atividade Profissional</h3><div class="canvas-wrapper"><canvas id="c-ativ"></canvas></div></div>
+                <div class="chart-card" id="card-cargos"><h3>Cargos e Funções</h3><div class="canvas-wrapper"><canvas id="c-cargos"></canvas></div></div>
+            </div>
+        </div>
+        <div id="engagement-content" class="hidden">
+            <div class="chart-grid">
+                <div class="chart-card full-width" style="height:420px;"><h3>Funil de Participação por Edição</h3><div class="canvas-wrapper"><canvas id="c-engage-funnel"></canvas></div></div>
+                <div class="chart-card" style="height:380px;"><h3>Alunos Novos vs Recorrentes</h3><div class="canvas-wrapper"><canvas id="c-engage-recorrencia"></canvas></div></div>
+                <div class="chart-card" style="height:380px;"><h3>Certificados por Programa</h3><div class="canvas-wrapper"><canvas id="c-engage-certs"></canvas></div></div>
+            </div>
+        </div>
+        <div id="abandon-content" class="hidden">
+            <div class="chart-card full-width" style="height: 500px;">
+                <h3>Evasão no Funil de Participação</h3>
+                <div class="canvas-wrapper"><canvas id="c-abandon-bar"></canvas></div>
+            </div>
+        </div>
+        <div id="evaluation-content" class="hidden">
+            <div class="kpi-grid" style="grid-template-columns: 1fr 1fr;" id="eval-metrics">
+                <div class="kpi-card" style="background: var(--blue-dark); color: white; border-color: var(--blue-dark);">
+                    <span style="color:white;">CONCEITO GERAL (1-5)</span><div id="v-conc-geral" style="color:white; font-size:3.5rem; margin-top: 0;">0.0</div>
+                </div>
+                <div class="kpi-card highlight" id="box-nps" style="background: var(--card);">
+                    <span>RECOMENDAÇÃO (NPS 0-10)</span><div id="v-nps" style="font-size:3.5rem; margin-top: 0;">0.0</div>
+                </div>
+            </div>
+            <div class="chart-grid">
+                <div class="chart-card" style="height: 450px;">
+                    <h3>Aspectos Avaliativos</h3>
+                    <div class="canvas-wrapper"><canvas id="c-notas-bar"></canvas></div>
+                </div>
+                <div class="chart-card" style="height: 450px;">
+                    <h3>Feedback Qualitativo</h3>
+                    <div class="comment-list" id="comment-list" style="height: 100%; max-height: none;"></div>
+                </div>
+            </div>
+        </div>
+        <div id="banca-content" class="hidden">
+            <div style="display:flex;flex-direction:column;gap:24px;">
+                <div id="banca-editions-grid" style="display:flex;flex-direction:column;gap:24px;"></div>
+                <div class="chart-card full-width">
+                    <h3>Feedback e Considerações da Banca</h3>
+                    <div class="comment-list" id="banca-comment-list"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="page-portfolio" class="page-section hidden">
+        <div class="header-title">
+            <h1>PORTFÓLIO DE SOLUÇÕES EDUCACIONAIS</h1>
+        </div>
+        <p style="text-align: center; color: var(--text-muted); max-width: 800px; margin: 0 auto 30px auto; font-size: 1.1rem; line-height: 1.6;">
+            Conheça as iniciativas do CISSA focadas na formação, qualificação e inserção de talentos no mercado de Cibersegurança e Tecnologia.
+        </p>
+        <div class="portfolio-grid">
+            <div class="portfolio-card">
+                <div class="portfolio-tag">Online síncrono | 10h</div>
+                <h3>CISSA Series (Hands On)</h3>
+                <p>Formações temáticas, curtas e aplicadas, focadas em introdução prática a temas específicos de cibersegurança.</p>
+                <ul class="portfolio-features">
+                    <li>Objetivo: Ampliar alcance técnico e gerar entrada qualificada.</li>
+                    <li>Estratégia: Sensibilização técnica e atualização temática.</li>
+                </ul>
+            </div>
+            <div class="portfolio-card">
+                <div class="portfolio-tag">Presencial | 4h</div>
+                <h3>CISSA Lab</h3>
+                <p>Experiência prática, presencial e concentrada, com foco em aplicação imediata ou sensibilização ativa.</p>
+                <ul class="portfolio-features">
+                    <li>Objetivo: Gerar experiência prática de alto impacto.</li>
+                    <li>Estratégia: Engajamento comunitário e fortalecimento da marca.</li>
+                </ul>
+            </div>
+            <div class="portfolio-card">
+                <div class="portfolio-tag">Presencial intensivo | 16h</div>
+                <h3>CISSA Rescue</h3>
+                <p>Imersão prática de simulação de incidente cibernético, com cenário realista e tomada de decisão sob pressão.</p>
+                <ul class="portfolio-features">
+                    <li>Objetivo: Desenvolver maturidade técnica em resposta a incidentes.</li>
+                    <li>Estratégia: Produto âncora de diferenciação e prática real.</li>
+                </ul>
+            </div>
+            <div class="portfolio-card">
+                <div class="portfolio-tag">Híbrido ou online | 40h</div>
+                <h3>CISSA Journey</h3>
+                <p>Formação técnica aprofundada em um eixo específico da cibersegurança.</p>
+                <ul class="portfolio-features">
+                    <li>Objetivo: Desenvolver competência técnica aplicável ao mercado.</li>
+                    <li>Estratégia: Produto técnico vendável e formação estruturada.</li>
+                </ul>
+            </div>
+            <div class="portfolio-card">
+                <div class="portfolio-tag">Online ou híbrido | 80h</div>
+                <h3>CISSA Academy (FAST)</h3>
+                <p>Programa intensivo de formação estruturada para transição ou aceleração de carreira em cibersegurança.</p>
+                <ul class="portfolio-features">
+                    <li>Objetivo: Formar profissionais prontos para atuar no mercado.</li>
+                    <li>Estratégia: Posicionar o CISSA como centro formador de talentos.</li>
+                </ul>
+            </div>
+            <div class="portfolio-card">
+                <div class="portfolio-tag">Presencial ou híbrido | 24h</div>
+                <h3>CISSA Executive</h3>
+                <p>Programa executivo voltado para tomada de decisão estratégica, governança e risco cibernético.</p>
+                <ul class="portfolio-features">
+                    <li>Objetivo: Desenvolver capacidade estratégica de liderança.</li>
+                    <li>Estratégia: Atuação junto a executivos e C-level.</li>
+                </ul>
+            </div>
+            <div class="portfolio-card">
+                <div class="portfolio-tag">Assíncrono | 8h</div>
+                <h3>CISSA Digital</h3>
+                <p>Cursos estruturados em formato digital para acesso contínuo e em escala.</p>
+                <ul class="portfolio-features">
+                    <li>Objetivo: Escala, recorrência e ampliação de alcance.</li>
+                    <li>Estratégia: Produto de apoio às formações síncronas.</li>
+                </ul>
+            </div>
+            <div class="portfolio-card">
+                <div class="portfolio-tag">Híbrido | Contínuo</div>
+                <h3>CISSA Connect</h3>
+                <p>Comunidade contínua de estudantes, profissionais e parceiros conectados ao CISSA.</p>
+                <ul class="portfolio-features">
+                    <li>Objetivo: Criar ecossistema permanente em torno do CISSA.</li>
+                    <li>Estratégia: Fidelização e sustentação do portfólio.</li>
+                </ul>
+            </div>
+            <div class="portfolio-card">
+                <div class="portfolio-tag">Presencial | 180h</div>
+                <h3>CISSA Summer Job</h3>
+                <p>Programa de imersão prática intensiva em ambiente real de trabalho.</p>
+                <ul class="portfolio-features">
+                    <li>Objetivo: Experiência prática profissional em cibersegurança.</li>
+                    <li>Estratégia: Diferenciação institucional e formação aplicada.</li>
+                </ul>
+            </div>
+            <div class="portfolio-card">
+                <div class="portfolio-tag">Competição | Intensivo</div>
+                <h3>Cyberthon</h3>
+                <p>Hackathon intensivo focado na resolução de desafios práticos de Cibersegurança (CTF). Avalia competências técnicas e comportamentais sob pressão, simulando ataques e defesas em ambientes controlados.</p>
+                <ul class="portfolio-features">
+                    <li>Objetivo: Avaliar competências técnicas sob pressão.</li>
+                    <li>Estratégia: Identificação de talentos de alto desempenho.</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    Chart.defaults.font.family = "'DM Sans', sans-serif";
+    Chart.register(ChartDataLabels);
+    
+    // ── Configuração Google / Apps Script Proxy ──────────────────────────────
+    const GOOGLE_CLIENT_ID  = '819315504258-c4i38dejmil689b6vl1tt6luqand88j6.apps.googleusercontent.com';
+    const GAS_URL           = 'https://script.google.com/macros/s/AKfycbwkwZL-Cl8p_PncymwjkjgS5pxAdShKk9n8i0M2n-VPNucNKgSC2ZyvwZ1SRtXUaCczXg/exec';
+    const ALLOWED_DOMAIN    = 'cesar.org.br';
+    const LOGIN_SCOPE       = 'openid email profile';      // só identidade — Drive fica no GAS
+    let   accessToken       = null;
+    let   tokenClient       = null;
+    // ────────────────────────────────────────────────────────────────────────
+
+    let uploadedFiles = [];
+    let currentScope = 'all';
+    let pTypeGlobal = 'unified';
+    let currentView = 'geral';
+    let charts = {};
+
+    const pieColors = ['#375B95', '#D25600', '#232323', '#5A83C4', '#F37623'];
+    const monthNames = {"01":"Janeiro","02":"Fevereiro","03":"Março","04":"Abril","05":"Maio","06":"Junho","07":"Julho","08":"Agosto","09":"Setembro","10":"Outubro","11":"Novembro","12":"Dezembro"};
+
+    function toggleDarkMode() {
+        document.body.classList.toggle('dark-mode');
+        renderDashboard(); 
+    }
+
+    function switchPage(pageId) {
+        document.querySelectorAll('.page-section').forEach(p => p.classList.add('hidden'));
+        document.getElementById('page-' + pageId).classList.remove('hidden');
+        document.querySelectorAll('#btn-page-dash, #btn-page-portfolio').forEach(b => b.classList.remove('active'));
+        document.getElementById('btn-page-' + pageId).classList.add('active');
+        if(pageId === 'dash') setTimeout(() => { Object.values(charts).forEach(chart => chart.resize()); }, 100);
+    }
+
+    function toggleAccordion(id, btnElement) {
+        document.getElementById(id).classList.toggle('show');
+        if(btnElement) btnElement.classList.toggle('open');
+    }
+
+    function normalize(str) { return String(str || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim(); }
+    function cleanId(v) { return normalize(v).replace(/[^a-z0-9]/g, ""); }
+    
+    function countLinks(sheetData) {
+        if (!sheetData) return 0;
+        let count = 0;
+        sheetData.forEach(row => {
+            let hasLink = Object.keys(row).some(k => {
+                let nk = normalize(k);
+                let val = String(row[k]).trim();
+                return (nk.includes('link') || nk.includes('url')) && val !== '' && val !== 'undefined' && val !== 'null';
+            });
+            if (hasLink) count++;
+        });
+        return count;
+    }
+
+    function getIdsFromRow(row) {
+        let cpfs = [], emails = [], nomes = [], baseNomes = [];
+        Object.keys(row).forEach(k => {
+            let n = normalize(k), rawVal = String(row[k]), v = cleanId(rawVal);
+            if (!v || ['nao','sim','true','false'].includes(v)) return;
+            if (n.includes('cpf')) cpfs.push(v);
+            else if (n.includes('mail')) emails.push(v);
+            else if (n.includes('nome') && !n.includes('certificado') && !n.includes('mae') && !n.includes('pai') && !n.includes('responsavel')) {
+                nomes.push(v);
+                let parts = normalize(rawVal).replace(/[^a-z0-9 ]/g, "").trim().split(/\s+/).filter(x => x.length > 2);
+                if (parts.length >= 2) baseNomes.push(parts[0] + parts[1]);
+            }
+        });
+        return { cpfs, emails, nomes, baseNomes };
+    }
+
+    function processFileBuffer(arrayBuffer, fileName) {
+        const workbook = XLSX.read(new Uint8Array(arrayBuffer), { type: 'array' });
+        let sheets = {};
+        let sheetNamesLower = [];
+        workbook.SheetNames.forEach(n => {
+            sheets[n] = XLSX.utils.sheet_to_json(workbook.Sheets[n]);
+            sheetNamesLower.push(n.toLowerCase());
+        });
+
+        let type = 'cyberthon';
+        if (sheetNamesLower.some(s => s.includes('diagn')) || fileName.toLowerCase().includes('hand')) type = 'hands-on';
+        else if (sheetNamesLower.some(s => s.includes('banca') || s.includes('estudantes')) || fileName.toLowerCase().includes('cybe')) type = 'cyberthon';
+
+        let year = "Desconhecido", month = "Desconhecido", monthKey = "Desconhecido";
+        let nameMatch = fileName.match(/(\d{2})_(\d{4})/);
+        if (nameMatch) { month = nameMatch[1]; year = nameMatch[2]; }
+        else {
+            let yMatch = fileName.match(/(20\d{2})/);
+            if (yMatch) year = yMatch[1];
+        }
+        if (month !== "Desconhecido" && year !== "Desconhecido") monthKey = month + "_" + year;
+
+        let fileId = 'file_' + Date.now() + Math.floor(Math.random() * 1000);
+        let fileDisplayName = fileName.replace(/\.[^/.]+$/, "").replace(/Cybethon/g, 'Cyberthon');
+
+        uploadedFiles.push({ id: fileId, name: fileDisplayName, type: type, data: sheets, year: year, monthKey: monthKey });
+    }
+
+    // ── Auth Google ──────────────────────────────────────────────────────────
+    function showLoginError(msg) {
+        const el = document.getElementById('login-error');
+        el.textContent = msg;
+        el.style.display = 'block';
+        document.getElementById('btn-signin').disabled = false;
+        document.getElementById('btn-signin').textContent = 'Entrar com Google';
+    }
+
+    function signIn() {
+        const btn = document.getElementById('btn-signin');
+        btn.disabled = true;
+        btn.textContent = 'Aguarde…';
+        document.getElementById('login-error').style.display = 'none';
+        tokenClient.requestAccessToken({ prompt: 'select_account' });
+    }
+
+    // ── Apps Script Proxy (JSONP — evita CORS) ───────────────────────────────
+    function gasRequest(params) {
+        return new Promise((resolve, reject) => {
+            const cbName = '_gas_' + Date.now() + '_' + Math.random().toString(36).slice(2);
+            const qs = new URLSearchParams({ ...params, token: accessToken, callback: cbName }).toString();
+
+            const script = document.createElement('script');
+
+            window[cbName] = (data) => {
+                delete window[cbName];
+                if (script.parentNode) script.parentNode.removeChild(script);
+                if (data && data.error) reject(new Error(data.error));
+                else resolve(data);
+            };
+
+            script.onerror = () => {
+                delete window[cbName];
+                if (script.parentNode) script.parentNode.removeChild(script);
+                reject(new Error('Falha ao conectar com o servidor (GAS)'));
+            };
+
+            script.src = `${GAS_URL}?${qs}`;
+            document.head.appendChild(script);
+        });
+    }
+
+    // Converte string base64 → ArrayBuffer
+    function base64ToBuffer(b64) {
+        const bin = atob(b64);
+        const buf = new ArrayBuffer(bin.length);
+        const u8  = new Uint8Array(buf);
+        for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+        return buf;
+    }
+
+    async function loadDriveFiles() {
+        document.getElementById('kpi-grid').innerHTML =
+            `<div class="kpi-card" style="grid-column:span 3"><span>Status</span>
+             <div style="font-size:1.1rem;color:var(--text-muted)">⏳ Carregando dados do Google Drive…</div></div>`;
+
+        try {
+            // 1. Listar arquivos via Apps Script
+            const { files } = await gasRequest({ action: 'list' });
+
+            if (!files || files.length === 0) {
+                document.getElementById('kpi-grid').innerHTML =
+                    `<div class="kpi-card" style="grid-column:span 3"><span>Aviso</span>
+                     <div style="font-size:1rem;color:var(--text-muted)">Nenhum arquivo encontrado no Google Drive.</div></div>`;
+                return;
+            }
+
+            // 2. Exportar cada arquivo em paralelo
+            await Promise.all(files.map(async ({ id, name }) => {
+                try {
+                    const { data } = await gasRequest({ action: 'export', fileId: id });
+                    const buf = base64ToBuffer(data);
+                    processFileBuffer(buf, name);
+                } catch (err) { console.warn('Erro ao processar arquivo:', name, err); }
+            }));
+
+            if (uploadedFiles.length > 0) { updateSidebar(); switchScope('all'); }
+            else {
+                document.getElementById('kpi-grid').innerHTML =
+                    `<div class="kpi-card" style="grid-column:span 3"><span>Aviso</span>
+                     <div style="font-size:1rem;color:var(--text-muted)">Nenhum dado válido encontrado.</div></div>`;
+            }
+        } catch (err) {
+            console.error(err);
+            document.getElementById('kpi-grid').innerHTML =
+                `<div class="kpi-card" style="grid-column:span 3"><span>Erro</span>
+                 <div style="font-size:1rem;color:var(--text-muted)">Erro ao carregar arquivos: ${err.message}</div></div>`;
+        }
+    }
+
+    // Inicializa assim que a biblioteca do Google carregar (resolve timing com async)
+    window.onGoogleLibraryLoad = function() {
+        tokenClient = google.accounts.oauth2.initTokenClient({
+            client_id: GOOGLE_CLIENT_ID,
+            scope: LOGIN_SCOPE,
+            callback: async (tokenResp) => {
+                if (tokenResp.error) { showLoginError('Erro na autenticação: ' + tokenResp.error); return; }
+                accessToken = tokenResp.access_token;
+                try {
+                    const infoResp = await fetch('https://www.googleapis.com/oauth2/v3/userinfo',
+                        { headers: { Authorization: 'Bearer ' + accessToken } });
+                    const info = await infoResp.json();
+                    if (!info.email || !info.email.endsWith('@' + ALLOWED_DOMAIN)) {
+                        google.accounts.oauth2.revoke(accessToken, () => {});
+                        accessToken = null;
+                        showLoginError(`❌ Acesso negado. Use uma conta @${ALLOWED_DOMAIN}.`);
+                        return;
+                    }
+                    document.getElementById('login-overlay').style.display = 'none';
+                    await loadDriveFiles();
+                } catch (err) { showLoginError('Erro ao verificar conta: ' + err.message); }
+            }
+        });
+    };
+
+    function updateSidebar() {
+        const container = document.getElementById('dynamic-editions');
+        container.innerHTML = '';
+        let cyberFiles = uploadedFiles.filter(f => f.type === 'cyberthon');
+        let handsFiles = uploadedFiles.filter(f => f.type === 'hands-on');
+        let html = '';
+
+        const buildMenu = (files, typeKey, title) => {
+            if (files.length === 0) return '';
+            let menuHtml = `<button class="accordion-btn" onclick="toggleAccordion('acc-${typeKey}', this)">${title} <span class="arrow">▼</span></button>
+                     <div class="accordion-content" id="acc-${typeKey}">
+                         <button class="sub-btn" id="btn-${typeKey}_all" onclick="switchScope('${typeKey}_all')">Visão Geral (${title})</button>`;
+            
+            let uniqueYears = [...new Set(files.map(f => f.year).filter(y => y !== "Desconhecido"))].sort((a,b)=>b-a);
+            if (uniqueYears.length > 0) {
+                menuHtml += `<div class="sub-group-title">Por Ano</div>`;
+                uniqueYears.forEach(y => { menuHtml += `<button class="sub-btn" id="btn-${typeKey}_year_${y}" onclick="switchScope('${typeKey}_year_${y}')">• Geral ${y}</button>`; });
+            }
+
+            let uniqueMonths = [...new Set(files.map(f => f.monthKey).filter(m => m !== "Desconhecido"))].sort((a,b) => {
+                let [m1, y1] = a.split('_'); let [m2, y2] = b.split('_');
+                if (y1 !== y2) return y2 - y1; 
+                return m2 - m1; 
+            });
+            if (uniqueMonths.length > 0) {
+                menuHtml += `<div class="sub-group-title">Por Mês</div>`;
+                uniqueMonths.forEach(mKey => {
+                    let [m, y] = mKey.split('_');
+                    menuHtml += `<button class="sub-btn" id="btn-${typeKey}_month_${mKey}" onclick="switchScope('${typeKey}_month_${mKey}')">• ${monthNames[m]} de ${y}</button>`;
+                });
+            }
+
+            menuHtml += `<div class="sub-group-title">Edições</div>`;
+            // Ordenar cronologicamente para numerar as edições corretamente
+            const sortedFiles = [...files].sort((a, b) => {
+                const key = f => {
+                    if (f.monthKey && f.monthKey !== 'Desconhecido') { const [mm,yy]=f.monthKey.split('_'); return parseInt(yy)*100+parseInt(mm); }
+                    return parseInt(f.year||0)*100;
+                };
+                return key(a) - key(b);
+            });
+            sortedFiles.forEach((f, i) => {
+                const ord  = (i + 1) + 'ª Ed.';
+                const tema = f.type === 'cyberthon'
+                    ? `Cyberthon ${f.year}`
+                    : extractTitle(f.name) || f.name;
+                const label = `${ord} — ${tema}`;
+                menuHtml += `<button class="sub-btn" id="btn-${f.id}" onclick="switchScope('${f.id}')" title="${f.name}">- ${label}</button>`;
+            });
+            menuHtml += `</div>`;
+            return menuHtml;
+        };
+
+        html += buildMenu(cyberFiles, 'cyberthon', 'Cyberthon');
+        html += buildMenu(handsFiles, 'handson',   'Hands On');
+
+        container.innerHTML = html;
+        document.querySelectorAll('.project-btn.general').forEach(b => { if(b.id !== 'btn-page-dash' && b.id !== 'btn-page-portfolio') b.classList.remove('active'); });
+        document.querySelectorAll('.sub-btn').forEach(b => b.classList.remove('active'));
+        let activeBtn = document.getElementById('btn-' + currentScope);
+        if (activeBtn) {
+            activeBtn.classList.add('active');
+            let parentAcc = activeBtn.closest('.accordion-content');
+            if (parentAcc) { parentAcc.classList.add('show'); parentAcc.previousElementSibling.classList.add('open'); }
+        }
+    }
+
+    // Retorna o número de edição (ordem cronológica) de um arquivo entre os do mesmo tipo
+    function getEditionNumber(file) {
+        const sortKey = f => {
+            if (f.monthKey && f.monthKey !== 'Desconhecido') {
+                const [mm, yy] = f.monthKey.split('_');
+                return parseInt(yy) * 100 + parseInt(mm);
+            }
+            return parseInt(f.year || 0) * 100;
+        };
+        const sorted = uploadedFiles
+            .filter(f => f.type === file.type)
+            .sort((a, b) => sortKey(a) - sortKey(b));
+        return sorted.findIndex(f => f.id === file.id) + 1;
+    }
+
+    function switchScope(scope) {
+        switchPage('dash'); 
+        currentScope = scope;
+        document.querySelectorAll('.project-btn.general').forEach(b => { if(b.id !== 'btn-page-dash' && b.id !== 'btn-page-portfolio') b.classList.remove('active'); });
+        document.querySelectorAll('.sub-btn').forEach(b => b.classList.remove('active'));
+        let activeBtn = document.getElementById('btn-' + scope);
+        if (activeBtn) activeBtn.classList.add('active');
+
+        let filesToProcess = [];
+        if (scope === 'all') Object.assign(filesToProcess, uploadedFiles);
+        else if (scope === 'cyberthon_all')  filesToProcess = uploadedFiles.filter(f => f.type === 'cyberthon');
+        else if (scope === 'handson_all')    filesToProcess = uploadedFiles.filter(f => f.type === 'hands-on');
+        else if (scope.startsWith('cyberthon_year_'))  filesToProcess = uploadedFiles.filter(f => f.type === 'cyberthon' && f.year === scope.replace('cyberthon_year_', ''));
+        else if (scope.startsWith('cyberthon_month_')) filesToProcess = uploadedFiles.filter(f => f.type === 'cyberthon' && f.monthKey === scope.replace('cyberthon_month_', ''));
+        else if (scope.startsWith('handson_year_'))    filesToProcess = uploadedFiles.filter(f => f.type === 'hands-on'  && f.year === scope.replace('handson_year_', ''));
+        else if (scope.startsWith('handson_month_'))   filesToProcess = uploadedFiles.filter(f => f.type === 'hands-on'  && f.monthKey === scope.replace('handson_month_', ''));
+        else filesToProcess = uploadedFiles.filter(f => f.id === scope);
+
+        let uniqueTypes = [...new Set(filesToProcess.map(f => f.type))];
+        pTypeGlobal = uniqueTypes.length === 1 ? uniqueTypes[0] : 'unified';
+
+        let title = "VISÃO GERAL (TODOS OS EVENTOS)";
+        if      (scope === 'cyberthon_all') title = "GERAL (CYBERTHON)";
+        else if (scope === 'handson_all')   title = "GERAL (HANDS ON)";
+        else if (scope.startsWith('cyberthon_year_'))  title = "CYBERTHON ANO: " + scope.replace('cyberthon_year_', '');
+        else if (scope.startsWith('handson_year_'))    title = "HANDS ON ANO: " + scope.replace('handson_year_', '');
+        else if (scope.startsWith('cyberthon_month_')) { let [mm,yy]=scope.replace('cyberthon_month_','').split('_'); title="CYBERTHON MÊS: "+monthNames[mm].toUpperCase()+" DE "+yy; }
+        else if (scope.startsWith('handson_month_'))   { let [mm,yy]=scope.replace('handson_month_','').split('_');   title="HANDS ON MÊS: "+monthNames[mm].toUpperCase()+" DE "+yy; }
+        else if (scope !== 'all') {
+            let f = uploadedFiles.find(x => x.id === scope);
+            if (f) {
+                const n   = getEditionNumber(f);
+                const ord = n + 'ª Edição';
+                if (f.type === 'hands-on') {
+                    title = extractTitle(f.name).toUpperCase() + ' — ' + ord.toUpperCase();
+                } else if (f.type === 'cyberthon') {
+                    title = 'CYBERTHON ' + f.year + ' — ' + ord.toUpperCase();
+                } else {
+                    title = extractTitle(f.name).toUpperCase() + ' — ' + ord.toUpperCase();
+                }
+            }
+        }
+
+        document.getElementById('top-title').innerText = title;
+        const showBanca = pTypeGlobal === 'cyberthon';
+        document.getElementById('tab-banca').classList.toggle('hidden', !showBanca);
+        if (currentView === 'banca' && !showBanca) switchView('geral');
+        else switchView('geral');
+    }
+
+    function switchView(view) {
+        currentView = view;
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        document.getElementById('tab-' + (view === 'avaliacao' ? 'eval' : (view === 'abandono' ? 'abandon' : view))).classList.add('active');
+        
+        document.getElementById('dashboard-content').classList.toggle('hidden', view !== 'geral');
+        document.getElementById('engagement-content').classList.toggle('hidden', view !== 'ativos');
+        document.getElementById('abandon-content').classList.toggle('hidden', view !== 'abandono');
+        document.getElementById('evaluation-content').classList.toggle('hidden', view !== 'avaliacao');
+        document.getElementById('banca-content').classList.toggle('hidden', view !== 'banca');
+        document.getElementById('kpi-grid').classList.toggle('hidden', view !== 'ativos');
+
+        renderDashboard();
+    }
+
+    function getChartType(dataObj) {
+        let countKeys = Object.keys(dataObj).filter(k => k !== 'Não Informado' && dataObj[k] > 0).length;
+        return countKeys <= 2 ? 'pie' : 'bar';
+    }
+
+    function clearDashboardState() {
+        document.getElementById('kpi-grid').innerHTML = `<div class="kpi-card" style="grid-column: span 3;"><span>Aviso</span><div style="font-size: 1.1rem; color: var(--text-muted);">Nenhum dado de inscrição encontrado para esta seleção.</div></div>`;
+        Object.keys(charts).forEach(id => { charts[id].destroy(); delete charts[id]; });
+        document.getElementById('comment-list').innerHTML = '';
+        document.getElementById('banca-comment-list').innerHTML = '';
+        document.getElementById('banca-criteria-grid').innerHTML = '';
+        document.getElementById('data-warning').classList.add('hidden');
+    }
+
+    function renderDashboard() {
+        if (uploadedFiles.length === 0) return;
+
+        let filesToProcess = [];
+        if (currentScope === 'all') Object.assign(filesToProcess, uploadedFiles);
+        else if (currentScope === 'cyberthon_all')  filesToProcess = uploadedFiles.filter(f => f.type === 'cyberthon');
+        else if (currentScope === 'handson_all')    filesToProcess = uploadedFiles.filter(f => f.type === 'hands-on');
+        else if (currentScope.startsWith('cyberthon_year_'))  filesToProcess = uploadedFiles.filter(f => f.type === 'cyberthon' && f.year === currentScope.replace('cyberthon_year_', ''));
+        else if (currentScope.startsWith('cyberthon_month_')) filesToProcess = uploadedFiles.filter(f => f.type === 'cyberthon' && f.monthKey === currentScope.replace('cyberthon_month_', ''));
+        else if (currentScope.startsWith('handson_year_'))    filesToProcess = uploadedFiles.filter(f => f.type === 'hands-on'  && f.year === currentScope.replace('handson_year_', ''));
+        else if (currentScope.startsWith('handson_month_'))   filesToProcess = uploadedFiles.filter(f => f.type === 'hands-on'  && f.monthKey === currentScope.replace('handson_month_', ''));
+        else filesToProcess = uploadedFiles.filter(f => f.id === currentScope);
+
+        const getSheetData = (dataObj, regexps) => {
+            let found = Object.keys(dataObj).find(k => regexps.some(r => r.test(normalize(k))));
+            return found ? dataObj[found] : null;
+        };
+
+        let globalStudentPresence = {};
+        uploadedFiles.forEach(fObj => {
+            let pres = getSheetData(fObj.data, [/presen/i]) || [];
+            pres.forEach(row => {
+                let ids = getIdsFromRow(row), isActive = false;
+                if (fObj.type === 'hands-on') isActive = true;
+                else {
+                    let hasPresenceCol = Object.keys(row).some(k => /presen|dia /i.test(normalize(k)));
+                    if (hasPresenceCol) {
+                        Object.keys(row).forEach(k => {
+                            if (/presen|dia /i.test(normalize(k))) {
+                                if (['TRUE','SIM','VERDADEIRO','V','1','X'].includes(String(row[k]).toUpperCase().trim())) isActive = true;
+                            }
+                        });
+                    } else isActive = true;
+                }
+                if (isActive) {
+                    let mainId = ids.emails[0] || ids.cpfs[0] || ids.baseNomes[0];
+                    if (mainId) {
+                        if (!globalStudentPresence[mainId]) globalStudentPresence[mainId] = new Set();
+                        globalStudentPresence[mainId].add(fObj.id);
+                    }
+                }
+            });
+        });
+
+        let combinedInscricoes = [], combinedPresenca = [], combinedReacao = [], combinedDiag = [], combinedBanca = [];
+        let combinedCertFacil = [], combinedCertMent = [];
+        let totalRealizados = 0;
+        let totalAtivosCPFs = new Set(), totalAtivosEmails = new Set(), totalAtivosNomes = new Set(), totalAtivosBase = new Set();
+        let currentViewStudents = new Set();
+
+        filesToProcess.forEach(fObj => {
+            let data = fObj.data, pType = fObj.type;
+            let insc = getSheetData(data, [/estudantes/, /inscri/, /respostas/, /form/]);
+            if (!insc) {
+                 let sortedSheets = Object.keys(data).sort((a,b) => data[b].length - data[a].length);
+                 insc = sortedSheets.length > 0 ? data[sortedSheets[0]] : [];
+            }
+            if (insc) {
+                insc.forEach(r => {
+                    r._fType = fObj.type;
+                    r._fYear = String(fObj.year);
+                    r._fName = String(fObj.name);
+                });
+            }
+            let pres = getSheetData(data, [/presen/]) || [];
+            let reac = getSheetData(data, [/reac/, /reaç/, /avaliação de re/]) || [];
+            let diag = getSheetData(data, [/diagn/]) || [];
+            let banca = getSheetData(data, [/banca/]) || [];
+            
+            let certF = getSheetData(data, [/certificados facilitadores/, /certificados fac/]) || [];
+            let certM = getSheetData(data, [/certificados mentores/, /certificados men/]) || [];
+
+            combinedInscricoes = combinedInscricoes.concat(insc);
+            combinedPresenca = combinedPresenca.concat(pres);
+            combinedReacao = combinedReacao.concat(reac);
+            combinedDiag = combinedDiag.concat(diag);
+            combinedBanca = combinedBanca.concat(banca);
+            
+            if (pType === 'cyberthon') {
+                combinedCertFacil = combinedCertFacil.concat(certF);
+                combinedCertMent = combinedCertMent.concat(certM);
+            }
+
+            pres.forEach(row => {
+                let ids = getIdsFromRow(row), isActive = false;
+                if (pType === 'hands-on') isActive = true; 
+                else {
+                    let hasPresenceCol = Object.keys(row).some(k => /presen|dia /i.test(normalize(k)));
+                    if (hasPresenceCol) {
+                        Object.keys(row).forEach(k => {
+                            if (/presen|dia /i.test(normalize(k))) {
+                                if (['TRUE','SIM','VERDADEIRO','V','1','X'].includes(String(row[k]).toUpperCase().trim())) isActive = true;
+                            }
+                        });
+                    } else isActive = true;
+                }
+
+                if (isActive && (ids.cpfs.length || ids.emails.length || ids.nomes.length || ids.baseNomes.length)) {
+                    totalRealizados++;
+                    ids.cpfs.forEach(c => totalAtivosCPFs.add(c));
+                    ids.emails.forEach(e => totalAtivosEmails.add(e));
+                    ids.nomes.forEach(n => totalAtivosNomes.add(n));
+                    ids.baseNomes.forEach(bn => totalAtivosBase.add(bn));
+
+                    let mainId = ids.emails[0] || ids.cpfs[0] || ids.baseNomes[0];
+                    if (mainId) currentViewStudents.add(mainId);
+                }
+            });
+        });
+
+        if (combinedInscricoes.length === 0) { clearDashboardState(); return; }
+
+        let filteredData = combinedInscricoes;
+        if (currentView === 'ativos' || currentView === 'avaliacao') {
+            filteredData = combinedInscricoes.filter(i => {
+                let ids = getIdsFromRow(i);
+                return ids.cpfs.some(c => totalAtivosCPFs.has(c)) || ids.emails.some(e => totalAtivosEmails.has(e)) || ids.nomes.some(n => totalAtivosNomes.has(n)) || ids.baseNomes.some(b => totalAtivosBase.has(b));
+            });
+        }
+
+        let warningBox = document.getElementById('data-warning');
+        if (warningBox) {
+            if (currentView === 'ativos' && totalRealizados > 0) {
+                let matchRate = filteredData.length / totalRealizados;
+                if (matchRate <= 0.3) {
+                    warningBox.classList.remove('hidden');
+                    document.getElementById('warn-realizados').innerText = totalRealizados;
+                    document.getElementById('warn-encontrados').innerText = filteredData.length;
+                } else warningBox.classList.add('hidden');
+            } else warningBox.classList.add('hidden');
+        }
+
+        // ── KPIs e charts de engajamento (só na aba "ativos") ───────────────
+        let certsCyberthon = 0, certsHandsOn = 0, cFacil = 0, cMent = 0;
+        let recorrentes = 0;
+        currentViewStudents.forEach(id => { if (globalStudentPresence[id] && globalStudentPresence[id].size > 1) recorrentes++; });
+        let esperados = combinedInscricoes.length;
+        let engajamento = esperados > 0 ? ((totalRealizados/esperados)*100).toFixed(1) + "%" : "0%";
+
+        filesToProcess.forEach(fObj => {
+            let pType = fObj.type;
+            let insc = getSheetData(fObj.data, [/estudantes/, /inscri/, /respostas/, /form/]) || [];
+            let pres = getSheetData(fObj.data, [/presen/]) || [];
+            let certF = getSheetData(fObj.data, [/certificados facilitadores/, /certificados fac/]) || [];
+            let certM = getSheetData(fObj.data, [/certificados mentores/, /certificados men/]) || [];
+            let alunosLinked = new Set();
+            [insc, pres].forEach(sheet => {
+                if(!sheet) return;
+                sheet.forEach(row => {
+                    let hasLink = Object.keys(row).some(k => (/link|url/i.test(normalize(k))) && String(row[k]).trim() !== '' && String(row[k]).trim() !== 'undefined' && String(row[k]).trim() !== 'null');
+                    if (hasLink) {
+                        let ids = getIdsFromRow(row);
+                        if (ids.cpfs.length) alunosLinked.add(ids.cpfs[0]);
+                        else if (ids.emails.length) alunosLinked.add(ids.emails[0]);
+                        else if (ids.nomes.length) alunosLinked.add(ids.nomes[0]);
+                    }
+                });
+            });
+            if (pType === 'cyberthon') { certsCyberthon += alunosLinked.size; cFacil += countLinks(certF); cMent += countLinks(certM); }
+            else certsHandsOn += alunosLinked.size;
+        });
+        let totalCerts = certsCyberthon + certsHandsOn + cFacil + cMent;
+
+        if (currentView === 'ativos') {
+            let grid = document.getElementById('kpi-grid');
+            grid.innerHTML = `
+                <div class="kpi-card" title="Total de formulários de inscrição recebidos."><span>Inscrições</span><div style="color:var(--blue-dark);">${esperados}</div></div>
+                <div class="kpi-card" title="Taxa de pessoas que se inscreveram e compareceram."><span>Taxa de Engajamento</span><div style="color:var(--blue-dark);">${engajamento}</div></div>
+                <div class="kpi-card highlight" style="background:var(--blue-dark);border-color:var(--blue-dark);" title="Soma de todos os certificados emitidos."><span style="color:white;">Total de Certificados</span><div style="color:var(--orange);">${totalCerts}</div></div>`;
+            renderEngagement(filesToProcess, totalRealizados, recorrentes, certsCyberthon, certsHandsOn, cFacil, cMent);
+        }
+
+        let isCyber = pTypeGlobal === 'cyberthon';
+        document.getElementById('card-edu').classList.toggle('hidden', isCyber);
+        document.getElementById('card-ativ').classList.toggle('hidden', isCyber);
+        document.getElementById('card-cargos').classList.toggle('hidden', isCyber);
+
+        // ── Visibilidade dinâmica das abas ──────────────────────────────────
+        const hasPresenca = combinedPresenca.length > 0 || pTypeGlobal === 'hands-on';
+        const hasReacao   = combinedReacao.length > 0;
+        const hasAbandono = combinedPresenca.length > 0 && combinedInscricoes.length > 0;
+
+        document.getElementById('kpi-grid').classList.toggle('hidden', currentView !== 'ativos');
+        document.getElementById('tab-ativos') .classList.toggle('hidden', !hasPresenca);
+        document.getElementById('tab-abandon').classList.toggle('hidden', !hasAbandono);
+        document.getElementById('tab-eval')   .classList.toggle('hidden', !hasReacao);
+
+        // Se a view atual ficou escondida, voltar para geral
+        if ((currentView === 'ativos'    && !hasPresenca)  ||
+            (currentView === 'abandono'  && !hasAbandono)  ||
+            (currentView === 'avaliacao' && !hasReacao)) {
+            currentView = 'geral';
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.getElementById('tab-geral').classList.add('active');
+            document.getElementById('engagement-content').classList.add('hidden');
+            document.getElementById('dashboard-content').classList.remove('hidden');
+        }
+        // ────────────────────────────────────────────────────────────────────
+
+        if (currentView === 'abandono') renderAbandonment(combinedInscricoes, combinedPresenca, totalAtivosCPFs, totalAtivosEmails, totalAtivosNomes, totalAtivosBase);
+        else if (currentView === 'avaliacao') renderEvaluation(combinedReacao, filesToProcess);
+        else if (currentView === 'banca' && pTypeGlobal === 'cyberthon') renderBanca(combinedBanca, filesToProcess);
+        else if (currentView === 'ativos') renderEngagement(filesToProcess, totalRealizados, recorrentes, certsCyberthon, certsHandsOn, cFacil, cMent);
+        else if (currentView === 'geral') renderDemographics(filteredData);
+    }
+
+    // ── Nome de exibição por tipo de arquivo ────────────────────────────────
+    function extractTitle(fullName) {
+        // Hands On: mantém só o tema, remove datas e sufixos
+        return fullName
+            .replace(/^[^\/]+\//, '')  // remove prefixo de pasta (ex: "Hands On/")
+            .replace(/\d{1,2}[,\se]+\d{1,2}([,\se]+\d{1,2})*\s*[_\/]\s*\d{2}[_\/]?\s*\d{4}/gi, '')
+            .replace(/\d{2}\s*e\s*\d{2}[_\/]\d{2}[_\/]\d{4}/gi, '')
+            .replace(/[-–]\s*Hands\s*On\s*CISSA/gi, '')
+            .replace(/[-–]\s*Cyberthon\s*CISSA/gi, '')
+            .replace(/Hands\s*On\s*CISSA/gi, '')
+            .replace(/Cyberthon\s*CISSA/gi, '')
+            .replace(/CISSA/gi, '')
+            .replace(/\s{2,}/g, ' ')
+            .replace(/^[-–,\s]+|[-–,\s]+$/g, '')
+            .trim();
+    }
+
+    function getDisplayName(fObj) {
+        if (fObj.type === 'hands-on') return extractTitle(fObj.name);
+        // Cyberthon: remove prefixo de pasta (ex: "Cyberthon/"), "CISSA" e formata data
+        return fObj.name
+            .replace(/^[^\/]+\//, '')       // remove "Cyberthon/" ou qualquer prefixo de pasta
+            .replace(/\s*CISSA\s*/gi, ' ')
+            .replace(/_(\d{2})_(\d{4})/g, '/$1/$2')
+            .replace(/\s{2,}/g, ' ')
+            .trim();
+    }
+    // ────────────────────────────────────────────────────────────────────────
+
+    function renderEngagement(filesToProcess, totalRealizados, recorrentes, certsCyberthon, certsHandsOn, cFacil, cMent) {
+        // Funil por edição
+        const labels = [], inscritos = [], participacoes = [], certificados = [], bgColors = [];
+        filesToProcess.forEach(fObj => {
+            const title = getDisplayName(fObj) || fObj.name;
+            labels.push(title);
+            bgColors.push(fObj.type === 'cyberthon' ? '#375B95' : '#D25600');
+            const insc = (Object.values(fObj.data).find(s => Array.isArray(s)) || []).length;
+            inscritos.push(insc);
+            const pres = Object.keys(fObj.data).find(k => /presen/i.test(k));
+            const presData = pres ? fObj.data[pres] : [];
+            let ativos = 0, certs = 0;
+            if (fObj.type === 'hands-on') { ativos = presData.length; }
+            else { presData.forEach(r => { if (Object.keys(r).some(k => /presen|dia /i.test(normalize(k)) && ['TRUE','SIM','V','1','X'].includes(String(r[k]).toUpperCase().trim()))) ativos++; }); }
+            presData.forEach(p => { let ck = Object.keys(p).find(k => /certificado/i.test(normalize(k))); if (ck && ['TRUE','SIM','V','1','X'].includes(String(p[ck]).toUpperCase().trim())) certs++; });
+            participacoes.push(ativos);
+            certificados.push(certs);
+        });
+
+        ['c-engage-funnel','c-engage-recorrencia','c-engage-certs'].forEach(id => { if(charts[id]) { charts[id].destroy(); delete charts[id]; } });
+
+        if (labels.length > 0) {
+            const isDark = document.body.classList.contains('dark-mode');
+            const gridColor = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)';
+            const textColor = isDark ? '#E8E8E8' : '#232323';
+            const barThickness = Math.max(18, Math.min(40, Math.floor(320 / labels.length)));
+            charts['c-engage-funnel'] = new Chart(document.getElementById('c-engage-funnel'), {
+                type: 'bar',
+                data: { labels, datasets: [
+                    { label: 'Inscrições',    data: inscritos,     backgroundColor: bgColors.map(c => c + 'cc'), barThickness },
+                    { label: 'Participações', data: participacoes, backgroundColor: bgColors,                   barThickness },
+                    { label: 'Certificados',  data: certificados,  backgroundColor: '#232323',                  barThickness }
+                ]},
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: {
+                        legend: { labels: { color: textColor } },
+                        datalabels: { color: '#fff', font: { weight: 'bold', size: 10 }, formatter: v => v > 0 ? v : '' }
+                    },
+                    scales: {
+                        x: { ticks: { color: textColor, maxRotation: 35, font: { size: 11 } }, grid: { color: gridColor } },
+                        y: { ticks: { color: textColor }, grid: { color: gridColor }, beginAtZero: true }
+                    }
+                }
+            });
+        }
+
+        const novos = totalRealizados - recorrentes;
+        charts['c-engage-recorrencia'] = new Chart(document.getElementById('c-engage-recorrencia'), {
+            type: 'pie',
+            data: { labels: ['Novos Alunos', 'Alunos Recorrentes'], datasets: [{ data: [novos < 0 ? 0 : novos, recorrentes], backgroundColor: ['#375B95','#D25600'] }] },
+            options: { responsive:true, maintainAspectRatio:false, plugins:{ legend:{ labels:{ color: document.body.classList.contains('dark-mode') ? '#E8E8E8' : '#232323' } }, datalabels:{ color:'#fff', font:{weight:'bold'}, formatter:(v,ctx) => { let t=ctx.dataset.data.reduce((a,b)=>a+b,0); return t>0 ? Math.round(v/t*100)+'%' : ''; } } } }
+        });
+
+        const certsLabels = [], certsData = [], certsColors = [];
+        if (certsCyberthon > 0) { certsLabels.push('Alunos Cyberthon'); certsData.push(certsCyberthon); certsColors.push('#375B95'); }
+        if (certsHandsOn > 0)   { certsLabels.push('Alunos Hands On');  certsData.push(certsHandsOn);  certsColors.push('#D25600'); }
+        if (cFacil > 0)         { certsLabels.push('Facilitadores');     certsData.push(cFacil);         certsColors.push('#232323'); }
+        if (cMent > 0)          { certsLabels.push('Mentores');          certsData.push(cMent);          certsColors.push('#5A83C4'); }
+        if (certsData.length > 0) {
+            charts['c-engage-certs'] = new Chart(document.getElementById('c-engage-certs'), {
+                type: 'pie',
+                data: { labels: certsLabels, datasets: [{ data: certsData, backgroundColor: certsColors }] },
+                options: { responsive:true, maintainAspectRatio:false, plugins:{ legend:{ labels:{ color: document.body.classList.contains('dark-mode') ? '#E8E8E8' : '#232323' } }, datalabels:{ color:'#fff', font:{weight:'bold'}, formatter:(v,ctx) => { let t=ctx.dataset.data.reduce((a,b)=>a+b,0); return t>0 ? Math.round(v/t*100)+'%' : ''; } } } }
+            });
+        }
+    }
+
+    function renderAbandonment(inscritos, presenca, ativosCPFs, ativosEmails, ativosNomes, ativosBaseNomes) {
+        let naoParticiparam = inscritos.filter(i => {
+            let ids = getIdsFromRow(i);
+            return !(ids.cpfs.some(c => ativosCPFs.has(c)) || ids.emails.some(e => ativosEmails.has(e)) || ids.nomes.some(n => ativosNomes.has(n)) || ids.baseNomes.some(bn => ativosBaseNomes.has(bn)));
+        }).length;
+
+        let naoApareceram = 0, menosMetade = 0;
+
+        presenca.forEach(p => {
+            let diasMarcados = 0, totalDias = 0;
+            Object.keys(p).forEach(k => {
+                if (/presen|dia /i.test(normalize(k))) {
+                    totalDias++;
+                    if (['TRUE','SIM','VERDADEIRO','V','1','X'].includes(String(p[k]).toUpperCase().trim())) diasMarcados++;
+                }
+            });
+            if (totalDias > 0) {
+                if (diasMarcados === 0) naoApareceram++;
+                else if (diasMarcados <= totalDias / 2) menosMetade++;
+            }
+        });
+
+        renderChart('c-abandon-bar', 'bar', {
+            "Evasão Precoce (≤ 50% de presença)": menosMetade,
+            "Faltosos (Na lista, mas 0 presenças)": naoApareceram,
+            "Não Iniciaram (Inscritos fora da lista)": naoParticiparam
+        }, true, inscritos.length, 'Situação', 'Qtd. de Participantes');
+    }
+
+    function renderDemographics(data) {
+        // Columns that must NEVER be matched for any demographic field
+        const GEO_BLOCK = /cidade|estado|municipio|endereco|\buf\b|local|internet.*cidade|ssh|docker|terraform|ansible|kubernetes|servidor|pipeline|protocolo|principal.*stack|area.*atuacao.*ex\./i;
+
+        // getColByRegex: find first column in a row matching regex, skipping geo/technical columns
+        const getColByRegex = (row, regex, extraBlock) => {
+            return Object.keys(row).find(k => {
+                let nk = normalize(k);
+                if (GEO_BLOCK.test(nk)) return false;
+                if (extraBlock && extraBlock.test(nk)) return false;
+                return regex.test(nk);
+            });
+        };
+
+        // countColRegex: count values by column regex; skips rows where column is absent/empty
+        const countColRegex = (dataArr, regex, unifyFn, extraBlock) => {
+            let o = {};
+            dataArr.forEach(row => {
+                let k = getColByRegex(row, regex, extraBlock);
+                if (!k || row[k] === undefined || row[k] === null) return;
+                let val = String(row[k]).trim();
+                if (val === '' || val === '-' || val === 'undefined') return;
+                if (unifyFn) {
+                    val = unifyFn(val.toLowerCase().trim());
+                    if (!val) return;
+                } else {
+                    if (val.length > 40) val = val.substring(0, 37) + '...';
+                    val = val.charAt(0).toUpperCase() + val.slice(1);
+                }
+                if (val) o[val] = (o[val] || 0) + 1;
+            });
+            if (Object.keys(o).length === 1 && o['Não Informado']) return {};
+            return Object.fromEntries(Object.entries(o).sort((a,b) => b[1]-a[1]));
+        };
+
+        let isCyber = pTypeGlobal === 'cyberthon';
+
+        // --- IDADE ---
+        let idadeCounts = { '15 a 17 anos': 0, '18 a 20 anos': 0, '21 a 29 anos': 0, '30 a 39 anos': 0, '40 a 49 anos': 0, 'Acima de 49 anos': 0 };
+        data.forEach(row => {
+            let k = getColByRegex(row, /\bidade\b|\bfaixa et[aá]ria\b|\bnascimento\b/i);
+            if (!k || !row[k]) return;
+            let v = String(row[k]).trim().toLowerCase();
+            if (v.includes('15') || v.includes('16') || v.includes('17')) idadeCounts['15 a 17 anos']++;
+            else if (v.includes('18') || v.includes('19') || v.includes('20')) idadeCounts['18 a 20 anos']++;
+            else if (['21','22','23','24','25','26','27','28','29'].some(n => v.includes(n))) idadeCounts['21 a 29 anos']++;
+            else if (['30','31','32','33','34','35','36','37','38','39'].some(n => v.includes(n))) idadeCounts['30 a 39 anos']++;
+            else if (['40','41','42','43','44','45','46','47','48','49'].some(n => v.includes(n))) idadeCounts['40 a 49 anos']++;
+            else if (v.includes('acima') || v.includes('50') || v.includes('51+')) idadeCounts['Acima de 49 anos']++;
+        });
+        Object.keys(idadeCounts).forEach(k => { if (idadeCounts[k] === 0) delete idadeCounts[k]; });
+        document.getElementById('card-idade').classList.toggle('hidden', Object.keys(idadeCounts).length === 0);
+        renderChart('c-idade', 'bar', idadeCounts, false, null, 'Quantidade', 'Faixas Etárias');
+
+        // --- RAÇA / COR / ETNIA ---
+        // Block technical/SSH columns from being matched; prefer "etnia/raca" phrasing
+        const RACA_COL_BLOCK = /ssh|protocolo|servidor|stack|configuracao|manutencao|familiaridade|docker|kubernetes|terraform|ansible/i;
+        let rData = countColRegex(data, /etnia.*raca|raca.*etnia|auto.?declara|raca\s*\/\s*cor|\braca\b|\betnia\b/i, (vLower) => {
+            // Skip state abbreviations and very short noise
+            if (/^(pe|sp|pb|rj|rn|mg|ba|ce|go|pa|pr|rs|sc|df|es|to|pi|ma|al|se|ro|rr|ap|am|mt|ms|ac)$/.test(vLower.trim())) return null;
+            if (vLower.trim().length <= 2) return null;
+            // Skip obvious technical free-text leaked from adjacent columns
+            if (/ssh|docker|terraform|ansible|kubernetes|manualmente|automatiz|terminal|script|servidor|pipeline|iniciante|intermediar|avan[cç]|basico|nulo/.test(vLower)) return null;
+            if (vLower.includes('branc')) return 'Branca';
+            if (vLower.includes('pard') || vLower.includes('pret') || vLower.includes('negr')) return 'Preta / Parda';
+            if (vLower.includes('amarel') || vLower.includes('asiatic')) return 'Amarela / Asiática';
+            if (vLower.includes('indigen')) return 'Indígena';
+            if (vLower.includes('prefiro') || vLower.includes('informado') || vLower.includes('n/a')) return null;
+            return vLower.charAt(0).toUpperCase() + vLower.slice(1);
+        }, RACA_COL_BLOCK);
+        document.getElementById('card-raca').classList.toggle('hidden', Object.keys(rData).length === 0);
+        renderChart('c-raca', getChartType(rData), rData, true, null, 'Etnias', 'Quantidade');
+
+        // --- RENDA ---
+        let renData = countColRegex(data, /\brenda\b/i, (vLower) => {
+            if (vLower.trim().length <= 2) return null;
+            return vLower.charAt(0).toUpperCase() + vLower.slice(1);
+        });
+        document.getElementById('card-renda').classList.toggle('hidden', Object.keys(renData).length === 0);
+        renderChart('c-renda', getChartType(renData), renData, true, null, 'Renda', 'Quantidade');
+
+        // --- PCD (Geral e Tipos) ---
+        let pcdBin = { 'Sim': 0, 'Não': 0, 'Prefiro não responder': 0 };
+        let pcdTypes = {};
+        const PCD_COL_BLOCK = /cidade|estado|municipio|\buf\b|internet.*cidade/i;
+
+        data.forEach(row => {
+            let k = Object.keys(row).find(kk => {
+                let nk = normalize(kk);
+                if (GEO_BLOCK.test(nk)) return false;
+                if (PCD_COL_BLOCK.test(nk)) return false;
+                return /defici[eê]ncia|pessoa com deficiencia|\bpcd\b/.test(nk);
+            });
+            if (!k || row[k] === undefined || row[k] === null) return;
+            let val = String(row[k]).toLowerCase().trim();
+            if (val === '' || val === '-' || val === 'undefined') return;
+            // Skip state abbreviations and city names that leaked from adjacent column
+            if (/^(pe|sp|pb|rj|rn|mg|ba|ce|go|pa|pr|rs|sc|df|es|to|pi|ma|al|se|ro|rr|ap|am|mt|ms|ac)$/.test(val)) return;
+            if (/recife|olinda|joao pessoa|sao paulo|cupira|sao caitano|fortaleza|salvador|belo horizonte/.test(val)) return;
+
+            const VALID_PCD = ['sim', 'nao', 'não', 'nenhum', 'nenhuma', 'fisica', 'motora', 'visual', 'visao', 'auditiva', 'surd', 'intelectual', 'cognitiva', 'autista', 'tea', 'multipla', 'outra', 'prefiro', 'n/a'];
+            if (!VALID_PCD.some(vp => val.includes(vp))) return;
+
+            if (val.startsWith('não') || val.startsWith('nao') || val.includes('nenhuma') || val.includes('nenhum')) {
+                pcdBin['Não']++;
+            } else if (val.includes('prefiro') || val.includes('n/a')) {
+                pcdBin['Prefiro não responder']++;
+            } else {
+                pcdBin['Sim']++;
+                let t = 'Outras';
+                if (val.includes('fisica') || val.includes('física') || val.includes('motora')) t = 'Física / Motora';
+                else if (val.includes('visual') || val.includes('visao') || val.includes('visão')) t = 'Visual';
+                else if (val.includes('auditiva') || val.includes('surd')) t = 'Auditiva';
+                else if (val.includes('intelectual') || val.includes('cognitiva')) t = 'Intelectual';
+                else if (val.includes('autista') || val.includes('tea')) t = 'TEA / Autismo';
+                else if (val.includes('multipla') || val.includes('múltipla')) t = 'Múltipla';
+                pcdTypes[t] = (pcdTypes[t] || 0) + 1;
+            }
+        });
+
+        pcdBin = Object.fromEntries(Object.entries(pcdBin).filter(([k,v]) => v > 0));
+        pcdTypes = Object.fromEntries(Object.entries(pcdTypes).filter(([k,v]) => v > 0).sort((a,b) => b[1]-a[1]));
+
+        document.getElementById('card-pcd-bin').classList.toggle('hidden', Object.keys(pcdBin).length === 0);
+        if (isCyber) {
+            document.getElementById('card-pcd-type').classList.add('hidden');
+        } else {
+            document.getElementById('card-pcd-type').classList.toggle('hidden', Object.keys(pcdTypes).length === 0);
+        }
+        renderChart('c-pcd-bin', 'pie', pcdBin, false, null, 'Possui Deficiência', 'Quantidade');
+        renderChart('c-pcd-type', 'bar', pcdTypes, true, null, 'Tipos de Deficiência', 'Quantidade');
+
+        // --- APOIO SOCIAL ---
+        let socData = countColRegex(data, /\bsocial\b|\bbenefici[aá]rio\b|\bprograma social\b/i, (vLower) => {
+            if (vLower.trim().length <= 2) return null;
+            return vLower.charAt(0).toUpperCase() + vLower.slice(1);
+        });
+        document.getElementById('card-soc').classList.toggle('hidden', Object.keys(socData).length === 0);
+        renderChart('c-soc', getChartType(socData), socData, true, null, 'Beneficiário', 'Quantidade');
+
+        // --- GÊNERO ---
+        let genData = countColRegex(data, /\bg[eê]nero\b|\bsexo\b|\bidentifica\b/i, (vLower) => {
+            if (vLower.trim().length <= 2) return null;
+            if (vLower.includes('masculin') || vLower === 'homem') return 'Masculino';
+            if (vLower.includes('feminin') || vLower === 'mulher') return 'Feminino';
+            if (vLower.includes('trans') || vLower.includes('binari') || vLower.includes('outro')) return 'Outros / Diversidade';
+            if (vLower.includes('prefiro') || vLower.includes('informado')) return null;
+            return 'Outros / Diversidade';
+        });
+        document.getElementById('card-genero').classList.toggle('hidden', Object.keys(genData).length === 0);
+        renderChart('c-genero', getChartType(genData), genData, true, null, 'Gênero', 'Quantidade');
+
+        // --- ESCOLARIDADE, ATIVIDADE, CARGOS (Hands-On only) ---
+        document.getElementById('card-edu').classList.toggle('hidden', isCyber);
+        document.getElementById('card-ativ').classList.toggle('hidden', isCyber);
+        document.getElementById('card-cargos').classList.toggle('hidden', isCyber);
+
+        if (!isCyber) {
+            let eduData = countColRegex(data, /\bescolaridade\b|\bs[eé]rie\b|\bensino\b|\bforma[cç][aã]o\b/i, (vLower) => {
+                if (vLower.trim().length <= 2) return null;
+                if (vLower.includes('médio incompleto') || vLower.includes('medio incompleto') || /[123][ºª]/.test(vLower)) return 'Ensino Médio Incompleto';
+                if (vLower.includes('médio') || vLower.includes('medio')) return 'Ensino Médio Completo';
+                if (vLower.includes('superior incomp') || vLower.includes('graduação incomp') || vLower.includes('graduacao incomp')) return 'Superior Incompleto';
+                if (vLower.includes('superior comp') || vLower.includes('graduação comp') || vLower.includes('graduacao comp') || vLower.includes('bacharel')) return 'Superior Completo';
+                if (vLower.includes('pós') || vLower.includes('pos') || vLower.includes('especialização') || vLower.includes('mba')) return 'Pós-graduação';
+                if (vLower.includes('mestra')) return 'Mestrado';
+                if (vLower.includes('doutora')) return 'Doutorado';
+                if (vLower.includes('fundamental')) return 'Ensino Fundamental';
+                if (vLower.includes('prefiro') || vLower.includes('informado')) return null;
+                return vLower.charAt(0).toUpperCase() + vLower.slice(1);
+            });
+            document.getElementById('card-edu').classList.toggle('hidden', Object.keys(eduData).length === 0);
+            renderChart('c-edu', getChartType(eduData), eduData, true, null, 'Nível de Escolaridade', 'Quantidade');
+
+            // Atividade profissional — only match demographic column, NOT technical "stack/atuação" columns
+            let ativData = countColRegex(data, /\batividade profissional\b|\bstatus profissional\b|\bvinculo profissional\b/i, (vLower) => {
+                if (vLower.trim().length <= 2) return null;
+                return vLower.charAt(0).toUpperCase() + vLower.slice(1);
+            });
+            document.getElementById('card-ativ').classList.toggle('hidden', Object.keys(ativData).length === 0);
+            renderChart('c-ativ', getChartType(ativData), ativData, true, null, 'Atividade / Vínculo', 'Quantidade');
+
+            let cgData = countColRegex(data, /\bcargo\b|\bfun[cç][aã]o\b|\bsetor\b/i, (vLower) => {
+                if (vLower.trim().length <= 2) return null;
+                return vLower.charAt(0).toUpperCase() + vLower.slice(1);
+            });
+            document.getElementById('card-cargos').classList.toggle('hidden', Object.keys(cgData).length === 0);
+            renderChart('c-cargos', getChartType(cgData), Object.fromEntries(Object.entries(cgData).slice(0, 10)), true, null, 'Cargos / Setor', 'Quantidade');
+        }
+    }
+
+    function renderEvaluation(data, filesToProcess) {
+        if (!data || data.length === 0) {
+            document.getElementById('v-conc-geral').innerText = "0.0";
+            document.getElementById('box-nps').classList.add('hidden');
+            if(charts['c-notas-bar']) charts['c-notas-bar'].destroy();
+            document.getElementById('comment-list').innerHTML = "<div class='comment-item'>Nenhum feedback.</div>";
+            return;
+        }
+        
+        let allKeys = new Set();
+        data.forEach(r => Object.keys(r).forEach(k => allKeys.add(k)));
+        allKeys = Array.from(allKeys);
+
+        let evalKeys = allKeys.filter(k => (normalize(k).includes('avalia') || normalize(k).includes('escala')) && !normalize(k).includes('0 a 10') && !normalize(k).includes('recomendar'));
+        let npsKey = allKeys.find(k => normalize(k).includes('0 a 10') || normalize(k).includes('recomendar'));
+
+        let notasMap = {};
+        evalKeys.forEach(k => {
+            let nk = normalize(k);
+            let shortName = "Avaliação";
+            if (nk.includes('facilitador')) shortName = "Facilitadores";
+            else if (nk.includes('monitor')) shortName = "Monitores";
+            else if (nk.includes('metodologia')) shortName = "Metodologia";
+            else if (nk.includes('relevância') || nk.includes('relevancia')) shortName = "Relevância";
+            else if (nk.includes('engajamento')) shortName = "Engajamento";
+            else shortName = k.split(' ').slice(0,3).join(' ') + "...";
+
+            let values = data.map(r => parseFloat(r[k])).filter(n => !isNaN(n) && n <= 5);
+            if (values.length > 0) notasMap[shortName] = (values.reduce((a,b) => a+b, 0) / values.length).toFixed(2);
+        });
+
+        let allNotas = Object.values(notasMap).map(n => parseFloat(n));
+        document.getElementById('v-conc-geral').innerText = allNotas.length ? (allNotas.reduce((a,b) => a+b, 0) / allNotas.length).toFixed(1) : "0.0";
+        
+        if (npsKey) {
+            let npsValues = data.map(r => parseFloat(r[npsKey])).filter(n => !isNaN(n) && n <= 10);
+            if (npsValues.length > 0) {
+                document.getElementById('v-nps').innerText = (npsValues.reduce((a,b) => a+b, 0) / npsValues.length).toFixed(1);
+                document.getElementById('box-nps').classList.remove('hidden');
+            } else document.getElementById('box-nps').classList.add('hidden');
+        } else document.getElementById('box-nps').classList.add('hidden');
+
+        if(Object.keys(notasMap).length > 0) renderChart('c-notas-bar', 'bar', notasMap, false, null, 'Nota Média', 'Aspectos Avaliativos');
+
+        const cL = document.getElementById('comment-list');
+        cL.innerHTML = "";
+        let commentKeys = allKeys.filter(k => normalize(k).includes('sugest') || normalize(k).includes('coment') || normalize(k).includes('que bom') || normalize(k).includes('que pena') || normalize(k).includes('que tal') || normalize(k).includes('espaço'));
+        
+        data.forEach(r => {
+            commentKeys.forEach(ck => {
+                const txt = String(r[ck] || "").trim();
+                if(txt && txt.length > 4 && txt !== "--" && txt !== "undefined") {
+                    let label = ck.split('-')[0].trim();
+                    if(label.length > 25) label = "Feedback / Comentário";
+                    cL.innerHTML += `<div class="comment-item"><strong>${label}:</strong> "${txt}"</div>`;
+                }
+            });
+        });
+    }
+
+    function processBancaSheet(banca) {
+        const getNum = str => { str = String(str).toUpperCase().trim(); if(str.includes('N1')||str.includes('0-3'))return 3; if(str.includes('N2')||str.includes('BÁSICO')||str.includes('4-7'))return 7; if(str.includes('N3')||str.includes('BOM')||str.includes('8-11'))return 11; if(str.includes('N4')||str.includes('EXCELENTE')||str.includes('12-14'))return 14; let n=parseFloat(str); return !isNaN(n)&&n>0?n:0; };
+        const getBon = str => { str=String(str).toLowerCase().trim(); if(str.includes('+2')||str==='2'||str==='sim')return 2; if(str.includes('-2')||str.includes('estourou'))return -2; let n=parseFloat(str); return !isNaN(n)&&n>=-10&&n<=2?n:0; };
+        let sumScores = {}, count = {}, commentsHtml = '';
+        banca.forEach(b => {
+            let rowKeys = Object.keys(b);
+            let commentKeys = rowKeys.filter(k => normalize(k).includes('coment'));
+            commentKeys.forEach(ck => { let t=String(b[ck]||'').trim(); if(t&&t.length>3&&t!=='-'&&t.toLowerCase()!=='undefined') commentsHtml+=`<div class="comment-item">"${t}"</div>`; });
+            let isNewFmt = rowKeys.some(k => /\[g\d+\]/i.test(normalize(k)));
+            if (isNewFmt) {
+                let groups = new Set(); rowKeys.forEach(k => { let m=normalize(k).match(/\[g\d+\]/i); if(m) groups.add(m[0].toUpperCase()); });
+                groups.forEach(g => {
+                    let gKeys = rowKeys.filter(k => normalize(k).includes(g.toLowerCase()));
+                    let cKeys = gKeys.filter(k => !normalize(k).match(/bônus|bonus|tempo|pontos|\+2/));
+                    let bKeys = gKeys.filter(k => normalize(k).match(/tempo|pontos|\+2|bonus|bônus/));
+                    if (!cKeys.some(ck => b[ck]&&String(b[ck]).trim())) return;
+                    let dName = g; let score = 0;
+                    cKeys.forEach(ck => { if(b[ck]) score += getNum(b[ck]); });
+                    bKeys.forEach(bk => { if(b[bk]) score += getBon(b[bk]); });
+                    score = Math.min(100, Math.max(0, score));
+                    sumScores[dName] = (sumScores[dName]||0) + score; count[dName] = (count[dName]||0) + 1;
+                });
+            } else {
+                let cKeys = rowKeys.filter(k => normalize(k).match(/avalie|critério|nota /));
+                let bKeys = rowKeys.filter(k => normalize(k).match(/tempo|pontos|\+2|bonus/));
+                let dKey = rowKeys.find(k => normalize(k).match(/desafio|equipe/) && b[k] && String(b[k]).trim());
+                if (!dKey||!b[dKey]) return;
+                let dName = String(b[dKey]).trim(); if(dName.length>35) dName=dName.substring(0,32)+'…';
+                let score = 0;
+                cKeys.forEach(ck => { if(b[ck]) score += getNum(b[ck]); });
+                bKeys.forEach(bk => { if(b[bk]) score += getBon(b[bk]); });
+                score = Math.min(100, Math.max(0, score));
+                sumScores[dName] = (sumScores[dName]||0) + score; count[dName] = (count[dName]||0) + 1;
+            }
+        });
+        let avg = {};
+        Object.keys(count).forEach(d => avg[d] = parseFloat((sumScores[d]/count[d]).toFixed(1)));
+        return { avg, commentsHtml };
+    }
+
+    function renderBanca(combinedBanca, filesToProcess) {
+        // Limpar charts antigos
+        Object.keys(charts).forEach(id => { if(id.startsWith('c-banca-')) { charts[id].destroy(); delete charts[id]; } });
+        const grid = document.getElementById('banca-editions-grid');
+        grid.innerHTML = '';
+        document.getElementById('banca-comment-list').innerHTML = '';
+
+        const cyberFiles = (filesToProcess || []).filter(f => f.type === 'cyberthon');
+        const isDark = document.body.classList.contains('dark-mode');
+        const textColor = isDark ? '#E8E8E8' : '#232323';
+        const gridColor = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)';
+        let allComments = '';
+
+        if (cyberFiles.length === 0) {
+            grid.innerHTML = '<div class="chart-card full-width" style="padding:30px;text-align:center;color:var(--text-muted);">Nenhuma edição do Cyberthon selecionada.</div>';
+            return;
+        }
+
+        cyberFiles.forEach((fObj, idx) => {
+            const bancaSheet = Object.keys(fObj.data).find(k => /banca/i.test(normalize(k)));
+            if (!bancaSheet) return;
+            const bancaData = fObj.data[bancaSheet];
+            if (!bancaData || bancaData.length === 0) return;
+
+            const { avg, commentsHtml } = processBancaSheet(bancaData);
+            allComments += commentsHtml;
+
+            if (Object.keys(avg).length === 0) return;
+
+            const title = getDisplayName(fObj) || fObj.name;
+            const chartId = `c-banca-edition-${idx}`;
+            const nTeams = Object.keys(avg).length;
+            const cardH = Math.max(320, nTeams * 52 + 80);
+
+            const cardEl = document.createElement('div');
+            cardEl.className = 'chart-card full-width';
+            cardEl.style.height = cardH + 'px';
+            cardEl.innerHTML = `<h3>📊 ${title}</h3><div class="canvas-wrapper"><canvas id="${chartId}"></canvas></div>`;
+            grid.appendChild(cardEl);
+
+            // Ordenar por nota decrescente
+            const sorted = Object.entries(avg).sort((a,b) => b[1]-a[1]);
+            const labels = sorted.map(([k]) => k);
+            const values = sorted.map(([,v]) => v);
+            const maxVal = Math.max(...values);
+            const bgColors = values.map(v => v === maxVal ? '#D25600' : '#375B95');
+
+            setTimeout(() => {
+                charts[chartId] = new Chart(document.getElementById(chartId), {
+                    type: 'bar',
+                    data: { labels, datasets: [{ data: values, backgroundColor: bgColors, borderRadius: 4 }] },
+                    options: {
+                        indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+                        plugins: {
+                            legend: { display: false },
+                            datalabels: { color: '#fff', font: { weight: 'bold', size: 11 }, anchor: 'end', align: 'end', offset: 4, formatter: v => v }
+                        },
+                        scales: {
+                            x: { min: 0, max: 100, ticks: { color: textColor }, grid: { color: gridColor }, title: { display: true, text: 'Nota Média (0–100)', color: textColor } },
+                            y: { ticks: { color: textColor, font: { size: 12 } }, grid: { display: false } }
+                        }
+                    }
+                });
+            }, 0);
+        });
+
+        document.getElementById('banca-comment-list').innerHTML = allComments || '<div class="comment-item">Nenhum comentário encontrado.</div>';
+    }
+
+    function renderChart(id, type, dataObj, isHoriz = false, totalBase = null, yTitle = '', xTitle = '') {
+        if (charts[id]) charts[id].destroy();
+        if (Object.keys(dataObj).length === 0) return;
+        
+        const isDark = document.body.classList.contains('dark-mode');
+        const textColor = isDark ? '#e0e0e0' : '#232323';
+        const gridColor = isDark ? '#333333' : '#d1d1d1';
+        const isPie = type === 'pie';
+
+        const colorBlue = '#375B95';
+        const colorOrange = '#D25600';
+
+        let bgColors, borderColors;
+        
+        if (isPie) {
+            bgColors = pieColors;
+            borderColors = isDark ? '#1e1e1e' : '#fff';
+        } else {
+            const values = Object.values(dataObj);
+            const maxVal = Math.max(...values);
+            bgColors = values.map(v => (v === maxVal && values.length > 1) ? colorOrange : colorBlue);
+            borderColors = bgColors;
+        }
+
+        let chartData = {
+            labels: Object.keys(dataObj),
+            datasets: [{
+                data: Object.values(dataObj),
+                backgroundColor: bgColors,
+                borderColor: borderColors,
+                borderWidth: 1,
+                pointHoverBackgroundColor: '#fff',
+                pointHoverBorderColor: colorOrange
+            }]
+        };
+
+        let options = {
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: isPie, position: 'right', labels: { color: textColor, boxWidth: 12, font: { size: 11, family: "'DM Sans', sans-serif" } } },
+                tooltip: { 
+                    titleFont: { family: "'DM Sans', sans-serif" },
+                    bodyFont: { family: "'DM Sans', sans-serif", size: 13 },
+                    callbacks: { label: (c) => {
+                        if (id.includes('notas') || id.includes('banca') || id.includes('crit')) return ` ${c.raw}`;
+                        let base = totalBase || c.dataset.data.reduce((a,b)=>a+b, 0);
+                        return base > 0 ? ` ${c.raw} (${((c.raw*100)/base).toFixed(1)}%)` : ` ${c.raw}`;
+                    }}
+                },
+                datalabels: {
+                    color: (isPie ? '#fff' : (isDark ? '#e0e0e0' : '#232323')), 
+                    font: { weight: 'bold', size: 11, family: "'DM Sans', sans-serif" },
+                    anchor: isHoriz ? 'end' : 'end',
+                    align: isHoriz ? 'end' : 'end',
+                    offset: 4,
+                    formatter: (v, ctx) => {
+                        if (id.includes('notas') || id.includes('banca') || id.includes('crit')) return v;
+                        let base = totalBase || ctx.dataset.data.reduce((a,b)=>a+b, 0);
+                        return base > 0 ? ((v*100)/base).toFixed(1) + "%" : v;
+                    },
+                    display: (ctx) => ctx.dataset.data[ctx.dataIndex] > 0
+                }
+            }
+        };
+
+        if (!isPie) {
+            options.indexAxis = isHoriz ? 'y' : 'x';
+            options.layout = { padding: { top: isHoriz ? 0 : 25, right: isHoriz ? 40 : 0 } }; 
+            
+            options.scales = {
+                y: {
+                    beginAtZero: isHoriz ? false : true,
+                    max: (!isHoriz && (id.includes('banca-notas') || id.includes('banca-crit'))) ? 100 : (!isHoriz && id.includes('notas-bar') ? 5 : undefined),
+                    ticks: { color: textColor, font: { family: "'DM Sans', sans-serif" } },
+                    grid: { color: isHoriz ? 'transparent' : gridColor, drawBorder: false },
+                    title: { display: !!yTitle, text: yTitle, color: textColor, font: { weight: 'bold', family: "'DM Sans', sans-serif" } }
+                },
+                x: {
+                    beginAtZero: isHoriz ? true : false,
+                    max: (isHoriz && (id.includes('banca-notas') || id.includes('banca-crit'))) ? 100 : (isHoriz && id.includes('notas-bar') ? 5 : undefined),
+                    ticks: { color: textColor, font: { family: "'DM Sans', sans-serif" } },
+                    grid: { color: isHoriz ? gridColor : 'transparent', drawBorder: false },
+                    title: { display: !!xTitle, text: xTitle, color: textColor, font: { weight: 'bold', family: "'DM Sans', sans-serif" } }
+                }
+            };
+        }
+
+        charts[id] = new Chart(document.getElementById(id), { type: type, data: chartData, options: options });
+    }
+</script>
+</body>
+</html>
