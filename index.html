@@ -181,15 +181,10 @@
             </div>
         </div>
         <div id="abandon-content" class="hidden">
-            <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: start;">
-                <div class="chart-card" style="height: 420px;">
-                    <h3>Participação vs Evasão</h3>
-                    <div class="canvas-wrapper"><canvas id="c-abandon-bar"></canvas></div>
-                </div>
-                <div class="chart-card" style="padding: 28px 24px;">
-                    <h3 style="margin-bottom: 18px;">Resumo de Engajamento</h3>
-                    <div id="abandon-stats" style="display:flex; flex-direction:column; gap:14px;"></div>
-                </div>
+            <div class="kpi-grid" id="abandon-kpi-grid"></div>
+            <div class="chart-card" style="height: 440px; max-width: 620px; margin: 0 auto;">
+                <h3>Participação vs Evasão</h3>
+                <div class="canvas-wrapper"><canvas id="c-abandon-bar"></canvas></div>
             </div>
         </div>
         <div id="evaluation-content" class="hidden">
@@ -1030,13 +1025,24 @@
                 // Certificados: links na lista de presença (coluna ao lado)
                 certs = contarCertsPorLink([presData]);
             } else {
-                // Cyberthon: participações via coluna presença/dia; fallback = total da lista
+                // Cyberthon: conta quem tem ao menos 1 dia de presença marcado
+                const PRESENCA_VALS = new Set(['TRUE','SIM','VERDADEIRO','V','1','X','S']);
+                const isPresCol = k => {
+                    const nk = normalize(k);
+                    // "PRESENÇA", "DIA 1", "DIA 08/04", "DIA1", "08/04", "09/04" …
+                    return /presen|compare/i.test(nk)
+                        || /\bdia\b/i.test(nk)
+                        || /^\d{1,2}[\/\-\.]\d{1,2}/.test(k.trim());
+                };
                 presData.forEach(r => {
-                    if (Object.keys(r).some(k => /presen|dia /i.test(normalize(k)) &&
-                        ['TRUE','SIM','V','1','X'].includes(String(r[k]).toUpperCase().trim())))
+                    if (Object.keys(r).some(k =>
+                        isPresCol(k) && PRESENCA_VALS.has(String(r[k]).toUpperCase().trim())))
                         ativos++;
                 });
-                if (ativos === 0) ativos = presData.length; // fallback se não há coluna de presença
+                // Fallback só se a aba não tiver nenhuma coluna de controle de presença
+                if (ativos === 0 && !presData.some(r => Object.keys(r).some(isPresCol))) {
+                    ativos = presData.length;
+                }
                 // Certificados: links na lista de presença, cap em ativos
                 certs = Math.min(contarCertsPorLink([presData]), ativos);
             }
@@ -1120,58 +1126,113 @@
     }
 
     function renderAbandonment(inscritos, presenca, ativosCPFs, ativosEmails, ativosNomes, ativosBaseNomes) {
-        let naoParticiparam = inscritos.filter(i => {
-            let ids = getIdsFromRow(i);
-            return !(ids.cpfs.some(c => ativosCPFs.has(c)) || ids.emails.some(e => ativosEmails.has(e)) || ids.nomes.some(n => ativosNomes.has(n)) || ids.baseNomes.some(bn => ativosBaseNomes.has(bn)));
-        }).length;
+        // ── Conta frequência direto das colunas de presença ──────────────────
+        // Fonte única de verdade: evita divergência com ID-matching
+        const PRESENCA_VALS_AB = new Set(['TRUE','SIM','VERDADEIRO','V','1','X','S']);
+        const isPresColAb = k => {
+            const nk = normalize(k);
+            return /presen|compare/i.test(nk)
+                || /\bdia\b/i.test(nk)
+                || /^\d{1,2}[\/\-\.]\d{1,2}/.test(k.trim());
+        };
 
-        let participaram = inscritos.length - naoParticiparam;
-
-        let naoApareceram = 0, menosMetade = 0;
+        let participaram = 0, cemPorcento = 0, boaFreq = 0, menosMetade = 0, naoApareceram = 0;
         presenca.forEach(p => {
             let diasMarcados = 0, totalDias = 0;
             Object.keys(p).forEach(k => {
-                if (/presen|dia /i.test(normalize(k))) {
+                if (isPresColAb(k)) {
                     totalDias++;
-                    if (['TRUE','SIM','VERDADEIRO','V','1','X'].includes(String(p[k]).toUpperCase().trim())) diasMarcados++;
+                    if (PRESENCA_VALS_AB.has(String(p[k]).toUpperCase().trim())) diasMarcados++;
                 }
             });
             if (totalDias > 0) {
-                if (diasMarcados === 0) naoApareceram++;
-                else if (diasMarcados <= totalDias / 2) menosMetade++;
+                if (diasMarcados === 0) {
+                    naoApareceram++;
+                } else {
+                    participaram++;                              // ao menos 1 dia marcado
+                    if (diasMarcados === totalDias)             cemPorcento++;
+                    else if (diasMarcados > totalDias / 2)      boaFreq++;
+                    else                                        menosMetade++;
+                }
             }
         });
 
-        // Pie chart: Participaram vs Não participaram
-        renderChart('c-abandon-bar', 'pie', {
-            "Participaram": participaram,
-            "Não participaram": naoParticiparam
-        }, false, inscritos.length);
+        const total           = inscritos.length;
+        const naoParticiparam = Math.max(0, total - participaram);
+        const taxaPartic = total > 0 ? ((participaram    / total) * 100).toFixed(1) : '0.0';
+        const taxaEvasao = total > 0 ? ((naoParticiparam / total) * 100).toFixed(1) : '0.0';
+        const taxaBaixa  = total > 0 ? ((menosMetade   / total) * 100).toFixed(1) : '0.0';
+        const taxaCem    = total > 0 ? ((cemPorcento   / total) * 100).toFixed(1) : '0.0';
+        const taxaBoa    = total > 0 ? ((boaFreq       / total) * 100).toFixed(1) : '0.0';
 
-        // Stats panel
-        const total = inscritos.length;
-        const taxaPartic = total > 0 ? ((participaram / total) * 100).toFixed(1) : 0;
-        const taxaEvasao = total > 0 ? ((naoParticiparam / total) * 100).toFixed(1) : 0;
-
-        const statsEl = document.getElementById('abandon-stats');
-        if (statsEl) {
-            const stat = (icon, label, value, sub, color) =>
-                `<div style="display:flex;align-items:center;gap:14px;padding:14px 16px;border-radius:10px;background:rgba(0,0,0,0.04);border-left:4px solid ${color};">
-                    <span style="font-size:1.8rem;">${icon}</span>
-                    <div>
-                        <div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:2px;">${label}</div>
-                        <div style="font-size:1.6rem;font-weight:700;color:${color};line-height:1;">${value}</div>
-                        ${sub ? `<div style="font-size:0.82rem;color:var(--text-muted);margin-top:2px;">${sub}</div>` : ''}
-                    </div>
+        // ── KPI cards ────────────────────────────────────────────────────────
+        const kpiGrid = document.getElementById('abandon-kpi-grid');
+        if (kpiGrid) {
+            const card = (label, value, extra, highlight, bg, fg) => {
+                const style = bg ? `background:${bg};border-color:${bg};` : '';
+                const valStyle = fg ? `color:${fg};` : '';
+                const cls = highlight ? 'kpi-card highlight' : 'kpi-card';
+                return `<div class="${cls}" style="${style}">
+                    <span style="${fg ? `color:${fg};opacity:0.75;` : ''}">${label}</span>
+                    <div style="${valStyle}">${value}</div>
+                    ${extra ? `<div style="font-size:0.72rem;color:${fg || 'var(--text-muted)'};opacity:0.8;margin-top:4px;">${extra}</div>` : ''}
                 </div>`;
-
-            statsEl.innerHTML =
-                stat('📋', 'Total de Inscritos', total, '', 'var(--text-main)') +
-                stat('✅', 'Participaram', participaram, `Taxa de participação: ${taxaPartic}%`, '#2a7d4f') +
-                stat('❌', 'Não participaram', naoParticiparam, `Taxa de evasão: ${taxaEvasao}%`, '#c0392b') +
-                (menosMetade > 0 ? stat('⚠️', 'Frequência ≤ 50%', menosMetade, 'Dos que apareceram', '#e67e22') : '') +
-                (naoApareceram > 0 ? stat('🚫', 'Zero presenças registradas', naoApareceram, 'Estavam na lista de presença', '#7f8c8d') : '');
+            };
+            kpiGrid.innerHTML =
+                card('TOTAL INSCRITOS',          total,          '',                                false, 'var(--blue-dark)', '#fff') +
+                card('PARTICIPARAM',             participaram,   `Taxa: ${taxaPartic}%`,             false, '', '') +
+                card('PRESENÇA 100%',            cemPorcento,    `${taxaCem}% dos inscritos`,        false, '', '') +
+                (boaFreq > 0
+                    ? card('BOA FREQUÊNCIA (50–99%)', boaFreq,   `${taxaBoa}% dos inscritos`,        false, '', '')
+                    : '') +
+                (menosMetade > 0
+                    ? card('BAIXA FREQUÊNCIA (≤ 50%)', menosMetade, `${taxaBaixa}% dos inscritos`,   true,  '', '')
+                    : '') +
+                card('NÃO PARTICIPARAM',         naoParticiparam, `Taxa de evasão: ${taxaEvasao}%`,  false,
+                    naoParticiparam > participaram ? 'var(--orange)' : '', naoParticiparam > participaram ? '#fff' : '');
         }
+
+        // ── Pie chart com cores fixas por categoria ───────────────────────────
+        // azul escuro = 100% | azul claro = boa freq | laranja = baixa | preto = não participaram
+        const ABANDON_COLORS = {
+            '100%':   '#375B95',
+            'boa':    '#5A83C4',
+            'baixa':  '#D25600',
+            'nao':    '#232323'
+        };
+        if (charts['c-abandon-bar']) charts['c-abandon-bar'].destroy();
+        const isDark = document.body.classList.contains('dark-mode');
+        const textColor = isDark ? '#e0e0e0' : '#232323';
+        const pieLabels = [], pieValues = [], pieColors2 = [];
+        pieLabels.push('Presença 100%');       pieValues.push(cemPorcento);  pieColors2.push(ABANDON_COLORS['100%']);
+        if (boaFreq > 0) {
+            pieLabels.push('Boa frequência (50–99%)'); pieValues.push(boaFreq);    pieColors2.push(ABANDON_COLORS['boa']);
+        }
+        if (menosMetade > 0) {
+            pieLabels.push('Baixa frequência (≤ 50%)'); pieValues.push(menosMetade); pieColors2.push(ABANDON_COLORS['baixa']);
+        }
+        pieLabels.push('Não participaram');    pieValues.push(naoParticiparam); pieColors2.push(ABANDON_COLORS['nao']);
+
+        charts['c-abandon-bar'] = new Chart(document.getElementById('c-abandon-bar'), {
+            type: 'pie',
+            data: { labels: pieLabels, datasets: [{ data: pieValues, backgroundColor: pieColors2, borderColor: isDark ? '#1e1e1e' : '#fff', borderWidth: 2 }] },
+            options: {
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: true, position: 'right', labels: { color: textColor, boxWidth: 12, font: { size: 11, family: "'DM Sans', sans-serif" } } },
+                    tooltip: {
+                        titleFont: { family: "'DM Sans', sans-serif" },
+                        bodyFont:  { family: "'DM Sans', sans-serif", size: 13 },
+                        callbacks: { label: c => ` ${c.raw} (${total > 0 ? ((c.raw*100)/total).toFixed(1) : 0}%)` }
+                    },
+                    datalabels: {
+                        color: '#fff',
+                        font: { weight: 'bold', size: 11, family: "'DM Sans', sans-serif" },
+                        formatter: (v) => total > 0 && v > 0 ? ((v*100)/total).toFixed(1) + '%' : ''
+                    }
+                }
+            },
+        });
     }
 
     function renderDemographics(data) {
