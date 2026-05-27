@@ -982,9 +982,13 @@
             const title = getDisplayName(fObj) || fObj.name;
             labels.push(title);
             bgColors.push(fObj.type === 'cyberthon' ? '#375B95' : '#D25600');
-            // Inscrições: usa a aba correta (estudantes/inscrições), não apenas a primeira aba
-            const inscSheet = getSheetData(fObj.data, [/estudantes/, /inscri/, /respostas/, /form/])
-                           || Object.values(fObj.data).find(s => Array.isArray(s) && s.length > 1)
+            // Inscrições: busca aba de estudantes/alunos — exclui abas auxiliares
+            const inscSheet = getSheetData(fObj.data, [/estudantes/, /alunos/, /inscri/, /respostas/, /^form/])
+                           || Object.entries(fObj.data)
+                                .filter(([k, v]) => Array.isArray(v) && v.length > 1
+                                    && !/banca|presen|certif|mentor|facilit|reac|avalia|diagn|espera|indicad|pitch|script|autocrat/i.test(normalize(k)))
+                                .sort(([,a],[,b]) => b.length - a.length)
+                                .map(([,v]) => v)[0]
                            || [];
             inscritos.push(inscSheet.length);
 
@@ -1017,15 +1021,16 @@
 
             if (fObj.type === 'hands-on') {
                 ativos = presData.length;
-                certs  = contarCertsPorLink(Object.values(fObj.data).filter(s => Array.isArray(s)));
+                // Certificados: links na lista de presença (coluna ao lado)
+                certs = contarCertsPorLink([presData]);
             } else {
                 // Cyberthon: participações via coluna presença/dia
                 presData.forEach(r => {
                     if (Object.keys(r).some(k => /presen|dia /i.test(normalize(k)) && ['TRUE','SIM','V','1','X'].includes(String(r[k]).toUpperCase().trim())))
                         ativos++;
                 });
-                // Certificados Cyberthon: mesma lógica do KPI (link/url)
-                certs = contarCertsPorLink([inscSheet, presData]);
+                // Certificados: links na lista de presença (não usa aba de inscrições)
+                certs = contarCertsPorLink([presData]);
             }
 
             participacoes.push(ativos);
