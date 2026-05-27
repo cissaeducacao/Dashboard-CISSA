@@ -181,9 +181,15 @@
             </div>
         </div>
         <div id="abandon-content" class="hidden">
-            <div class="chart-card full-width" style="height: 500px;">
-                <h3>Evasão no Funil de Participação</h3>
-                <div class="canvas-wrapper"><canvas id="c-abandon-bar"></canvas></div>
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: start;">
+                <div class="chart-card" style="height: 420px;">
+                    <h3>Participação vs Evasão</h3>
+                    <div class="canvas-wrapper"><canvas id="c-abandon-bar"></canvas></div>
+                </div>
+                <div class="chart-card" style="padding: 28px 24px;">
+                    <h3 style="margin-bottom: 18px;">Resumo de Engajamento</h3>
+                    <div id="abandon-stats" style="display:flex; flex-direction:column; gap:14px;"></div>
+                </div>
             </div>
         </div>
         <div id="evaluation-content" class="hidden">
@@ -1024,13 +1030,15 @@
                 // Certificados: links na lista de presença (coluna ao lado)
                 certs = contarCertsPorLink([presData]);
             } else {
-                // Cyberthon: participações via coluna presença/dia
+                // Cyberthon: participações via coluna presença/dia; fallback = total da lista
                 presData.forEach(r => {
-                    if (Object.keys(r).some(k => /presen|dia /i.test(normalize(k)) && ['TRUE','SIM','V','1','X'].includes(String(r[k]).toUpperCase().trim())))
+                    if (Object.keys(r).some(k => /presen|dia /i.test(normalize(k)) &&
+                        ['TRUE','SIM','V','1','X'].includes(String(r[k]).toUpperCase().trim())))
                         ativos++;
                 });
-                // Certificados: links na lista de presença (não usa aba de inscrições)
-                certs = contarCertsPorLink([presData]);
+                if (ativos === 0) ativos = presData.length; // fallback se não há coluna de presença
+                // Certificados: links na lista de presença, cap em ativos
+                certs = Math.min(contarCertsPorLink([presData]), ativos);
             }
 
             participacoes.push(ativos);
@@ -1117,8 +1125,9 @@
             return !(ids.cpfs.some(c => ativosCPFs.has(c)) || ids.emails.some(e => ativosEmails.has(e)) || ids.nomes.some(n => ativosNomes.has(n)) || ids.baseNomes.some(bn => ativosBaseNomes.has(bn)));
         }).length;
 
-        let naoApareceram = 0, menosMetade = 0;
+        let participaram = inscritos.length - naoParticiparam;
 
+        let naoApareceram = 0, menosMetade = 0;
         presenca.forEach(p => {
             let diasMarcados = 0, totalDias = 0;
             Object.keys(p).forEach(k => {
@@ -1133,11 +1142,36 @@
             }
         });
 
-        renderChart('c-abandon-bar', 'bar', {
-            "Evasão Precoce (≤ 50% de presença)": menosMetade,
-            "Faltosos (Na lista, mas 0 presenças)": naoApareceram,
-            "Não Iniciaram (Inscritos fora da lista)": naoParticiparam
-        }, true, inscritos.length, 'Situação', 'Qtd. de Participantes');
+        // Pie chart: Participaram vs Não participaram
+        renderChart('c-abandon-bar', 'pie', {
+            "Participaram": participaram,
+            "Não participaram": naoParticiparam
+        }, false, inscritos.length);
+
+        // Stats panel
+        const total = inscritos.length;
+        const taxaPartic = total > 0 ? ((participaram / total) * 100).toFixed(1) : 0;
+        const taxaEvasao = total > 0 ? ((naoParticiparam / total) * 100).toFixed(1) : 0;
+
+        const statsEl = document.getElementById('abandon-stats');
+        if (statsEl) {
+            const stat = (icon, label, value, sub, color) =>
+                `<div style="display:flex;align-items:center;gap:14px;padding:14px 16px;border-radius:10px;background:rgba(0,0,0,0.04);border-left:4px solid ${color};">
+                    <span style="font-size:1.8rem;">${icon}</span>
+                    <div>
+                        <div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:2px;">${label}</div>
+                        <div style="font-size:1.6rem;font-weight:700;color:${color};line-height:1;">${value}</div>
+                        ${sub ? `<div style="font-size:0.82rem;color:var(--text-muted);margin-top:2px;">${sub}</div>` : ''}
+                    </div>
+                </div>`;
+
+            statsEl.innerHTML =
+                stat('📋', 'Total de Inscritos', total, '', 'var(--text-main)') +
+                stat('✅', 'Participaram', participaram, `Taxa de participação: ${taxaPartic}%`, '#2a7d4f') +
+                stat('❌', 'Não participaram', naoParticiparam, `Taxa de evasão: ${taxaEvasao}%`, '#c0392b') +
+                (menosMetade > 0 ? stat('⚠️', 'Frequência ≤ 50%', menosMetade, 'Dos que apareceram', '#e67e22') : '') +
+                (naoApareceram > 0 ? stat('🚫', 'Zero presenças registradas', naoApareceram, 'Estavam na lista de presença', '#7f8c8d') : '');
+        }
     }
 
     function renderDemographics(data) {
