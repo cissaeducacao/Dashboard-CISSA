@@ -81,6 +81,9 @@
         .kpi-card span { font-size: 0.6rem; color: var(--text-muted); text-transform: uppercase; font-weight: 700; line-height: 1.2; min-height: 25px; letter-spacing: 0.5px; }
         .kpi-card div { font-size: 1.6rem; font-weight: 700; color: var(--blue-dark); margin-top: 8px; }
         .kpi-card.highlight div { color: var(--orange); }
+        .cert-breakdown { display: flex; flex-wrap: wrap; gap: 4px; justify-content: center; margin-top: 8px; }
+        .cert-breakdown span { font-size: 0.6rem; color: rgba(255,255,255,0.75); background: rgba(255,255,255,0.12); padding: 3px 8px; border-radius: 99px; white-space: nowrap; font-weight: 600; }
+        .cert-breakdown span b { color: #fff; font-size: 0.7rem; }
         .chart-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; }
         .chart-card { background: var(--card); padding: 20px; border-radius: 12px; border: 1px solid var(--border); min-height: 380px; display: flex; flex-direction: column; transition: 0.3s; box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
         .chart-card h3 { margin: 0 0 15px 0; font-size: 0.95rem; color: var(--blue-dark); text-transform: uppercase; border-bottom: 1px solid var(--border); padding-bottom: 10px; font-weight: 700; }
@@ -131,8 +134,7 @@
         <button class="project-btn general active" id="btn-page-dash" onclick="switchPage('dash')">Dashboard Interativo</button>
         <button class="project-btn general" id="btn-page-portfolio" onclick="switchPage('portfolio')">Portfólio Educacional</button>
         <h2 class="section-title">Análise de Eventos</h2>
-        <button class="project-btn general active" id="btn-all" onclick="switchScope('all')">Geral (Todos os Eventos)</button>
-        <div id="dynamic-editions" style="margin-top: 15px;"></div>
+        <div id="dynamic-editions" style="margin-top: 6px;"></div>
         <button class="project-btn theme-toggle" onclick="toggleDarkMode()">Alternar Tema</button>
     </div>
 </div>
@@ -359,6 +361,10 @@
 
     function normalize(str) { return String(str || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim(); }
     function cleanId(v) { return normalize(v).replace(/[^a-z0-9]/g, ""); }
+    function getSheetData(dataObj, regexps) {
+        const found = Object.keys(dataObj).find(k => regexps.some(r => r.test(normalize(k))));
+        return found ? dataObj[found] : null;
+    }
     
     function countLinks(sheetData) {
         if (!sheetData) return 0;
@@ -587,6 +593,34 @@
             return menuHtml;
         };
 
+        // ── Accordion Geral (todos os eventos) ──────────────────────────────
+        const allFiles = uploadedFiles;
+        if (allFiles.length > 0) {
+            let geralHtml = `<button class="accordion-btn" onclick="toggleAccordion('acc-all', this)">Geral <span class="arrow">▼</span></button>
+                     <div class="accordion-content" id="acc-all">
+                         <button class="sub-btn" id="btn-all" onclick="switchScope('all')">Visão Geral (Todos)</button>`;
+
+            const allYears = [...new Set(allFiles.map(f => f.year).filter(y => y !== 'Desconhecido'))].sort((a,b) => b - a);
+            if (allYears.length > 0) {
+                geralHtml += `<div class="sub-group-title">Por Ano</div>`;
+                allYears.forEach(y => { geralHtml += `<button class="sub-btn" id="btn-all_year_${y}" onclick="switchScope('all_year_${y}')">• Geral ${y}</button>`; });
+            }
+
+            const allMonths = [...new Set(allFiles.map(f => f.monthKey).filter(m => m !== 'Desconhecido'))].sort((a,b) => {
+                let [m1,y1] = a.split('_'); let [m2,y2] = b.split('_');
+                if (y1 !== y2) return y2 - y1; return m2 - m1;
+            });
+            if (allMonths.length > 0) {
+                geralHtml += `<div class="sub-group-title">Por Mês</div>`;
+                allMonths.forEach(mKey => {
+                    let [m, y] = mKey.split('_');
+                    geralHtml += `<button class="sub-btn" id="btn-all_month_${mKey}" onclick="switchScope('all_month_${mKey}')">• ${monthNames[m]} de ${y}</button>`;
+                });
+            }
+            geralHtml += `</div>`;
+            html += geralHtml;
+        }
+
         html += buildMenu(cyberFiles, 'cyberthon', 'Cyberthon');
         html += buildMenu(handsFiles, 'handson',   'Hands On');
 
@@ -626,6 +660,8 @@
 
         let filesToProcess = [];
         if (scope === 'all') Object.assign(filesToProcess, uploadedFiles);
+        else if (scope.startsWith('all_year_'))    filesToProcess = uploadedFiles.filter(f => f.year === scope.replace('all_year_', ''));
+        else if (scope.startsWith('all_month_'))   filesToProcess = uploadedFiles.filter(f => f.monthKey === scope.replace('all_month_', ''));
         else if (scope === 'cyberthon_all')  filesToProcess = uploadedFiles.filter(f => f.type === 'cyberthon');
         else if (scope === 'handson_all')    filesToProcess = uploadedFiles.filter(f => f.type === 'hands-on');
         else if (scope.startsWith('cyberthon_year_'))  filesToProcess = uploadedFiles.filter(f => f.type === 'cyberthon' && f.year === scope.replace('cyberthon_year_', ''));
@@ -640,6 +676,8 @@
         let title = "VISÃO GERAL (TODOS OS EVENTOS)";
         if      (scope === 'cyberthon_all') title = "GERAL (CYBERTHON)";
         else if (scope === 'handson_all')   title = "GERAL (HANDS ON)";
+        else if (scope.startsWith('all_year_'))    title = "GERAL " + scope.replace('all_year_', '');
+        else if (scope.startsWith('all_month_'))   { let [mm,yy]=scope.replace('all_month_','').split('_'); title="GERAL — "+monthNames[mm].toUpperCase()+" DE "+yy; }
         else if (scope.startsWith('cyberthon_year_'))  title = "CYBERTHON ANO: " + scope.replace('cyberthon_year_', '');
         else if (scope.startsWith('handson_year_'))    title = "HANDS ON ANO: " + scope.replace('handson_year_', '');
         else if (scope.startsWith('cyberthon_month_')) { let [mm,yy]=scope.replace('cyberthon_month_','').split('_'); title="CYBERTHON MÊS: "+monthNames[mm].toUpperCase()+" DE "+yy; }
@@ -700,6 +738,8 @@
 
         let filesToProcess = [];
         if (currentScope === 'all') Object.assign(filesToProcess, uploadedFiles);
+        else if (currentScope.startsWith('all_year_'))    filesToProcess = uploadedFiles.filter(f => f.year === currentScope.replace('all_year_', ''));
+        else if (currentScope.startsWith('all_month_'))   filesToProcess = uploadedFiles.filter(f => f.monthKey === currentScope.replace('all_month_', ''));
         else if (currentScope === 'cyberthon_all')  filesToProcess = uploadedFiles.filter(f => f.type === 'cyberthon');
         else if (currentScope === 'handson_all')    filesToProcess = uploadedFiles.filter(f => f.type === 'hands-on');
         else if (currentScope.startsWith('cyberthon_year_'))  filesToProcess = uploadedFiles.filter(f => f.type === 'cyberthon' && f.year === currentScope.replace('cyberthon_year_', ''));
@@ -708,10 +748,7 @@
         else if (currentScope.startsWith('handson_month_'))   filesToProcess = uploadedFiles.filter(f => f.type === 'hands-on'  && f.monthKey === currentScope.replace('handson_month_', ''));
         else filesToProcess = uploadedFiles.filter(f => f.id === currentScope);
 
-        const getSheetData = (dataObj, regexps) => {
-            let found = Object.keys(dataObj).find(k => regexps.some(r => r.test(normalize(k))));
-            return found ? dataObj[found] : null;
-        };
+        // getSheetData agora é global (definida acima de renderDashboard)
 
         let globalStudentPresence = {};
         uploadedFiles.forEach(fObj => {
@@ -863,7 +900,15 @@
             grid.innerHTML = `
                 <div class="kpi-card" title="Total de formulários de inscrição recebidos."><span>Inscrições</span><div style="color:var(--blue-dark);">${esperados}</div></div>
                 <div class="kpi-card" title="Taxa de pessoas que se inscreveram e compareceram."><span>Taxa de Engajamento</span><div style="color:var(--blue-dark);">${engajamento}</div></div>
-                <div class="kpi-card highlight" style="background:var(--blue-dark);border-color:var(--blue-dark);" title="Soma de todos os certificados emitidos."><span style="color:white;">Total de Certificados</span><div style="color:var(--orange);">${totalCerts}</div></div>`;
+                <div class="kpi-card highlight" style="background:var(--blue-dark);border-color:var(--blue-dark);" title="Detalhamento dos certificados emitidos por tipo.">
+                    <span style="color:white;">Total de Certificados</span>
+                    <div style="color:var(--orange);">${totalCerts}</div>
+                    <div class="cert-breakdown">
+                        ${(certsCyberthon + certsHandsOn) > 0 ? `<span>👨‍🎓 Alunos <b>${certsCyberthon + certsHandsOn}</b></span>` : ''}
+                        ${cFacil > 0 ? `<span>🎓 Facilitadores <b>${cFacil}</b></span>` : ''}
+                        ${cMent  > 0 ? `<span>🧑‍💼 Mentores <b>${cMent}</b></span>`       : ''}
+                    </div>
+                </div>`;
             renderEngagement(filesToProcess, totalRealizados, recorrentes, certsCyberthon, certsHandsOn, cFacil, cMent);
         }
 
@@ -937,14 +982,52 @@
             const title = getDisplayName(fObj) || fObj.name;
             labels.push(title);
             bgColors.push(fObj.type === 'cyberthon' ? '#375B95' : '#D25600');
-            const insc = (Object.values(fObj.data).find(s => Array.isArray(s)) || []).length;
-            inscritos.push(insc);
+            // Inscrições: usa a aba correta (estudantes/inscrições), não apenas a primeira aba
+            const inscSheet = getSheetData(fObj.data, [/estudantes/, /inscri/, /respostas/, /form/])
+                           || Object.values(fObj.data).find(s => Array.isArray(s) && s.length > 1)
+                           || [];
+            inscritos.push(inscSheet.length);
+
             const pres = Object.keys(fObj.data).find(k => /presen/i.test(k));
             const presData = pres ? fObj.data[pres] : [];
+
             let ativos = 0, certs = 0;
-            if (fObj.type === 'hands-on') { ativos = presData.length; }
-            else { presData.forEach(r => { if (Object.keys(r).some(k => /presen|dia /i.test(normalize(k)) && ['TRUE','SIM','V','1','X'].includes(String(r[k]).toUpperCase().trim()))) ativos++; }); }
-            presData.forEach(p => { let ck = Object.keys(p).find(k => /certificado/i.test(normalize(k))); if (ck && ['TRUE','SIM','V','1','X'].includes(String(p[ck]).toUpperCase().trim())) certs++; });
+
+            // Helper: conta certificados via link/url (mesmo critério do KPI)
+            const contarCertsPorLink = (sheets) => {
+                const certSet = new Set();
+                sheets.forEach(sheet => {
+                    (sheet || []).forEach(row => {
+                        const hasLink = Object.keys(row).some(k =>
+                            /link|url/i.test(normalize(k)) &&
+                            String(row[k]).trim() !== '' &&
+                            !['undefined','null'].includes(String(row[k]).trim().toLowerCase())
+                        );
+                        if (hasLink) {
+                            const cpfKey   = Object.keys(row).find(k => /cpf/i.test(normalize(k)));
+                            const emailKey = Object.keys(row).find(k => /email/i.test(normalize(k)));
+                            const nomeKey  = Object.keys(row).find(k => /^nome/i.test(normalize(k)));
+                            const id = (cpfKey && row[cpfKey]) || (emailKey && row[emailKey]) || (nomeKey && row[nomeKey]) || JSON.stringify(row);
+                            certSet.add(String(id).toLowerCase().trim());
+                        }
+                    });
+                });
+                return certSet.size;
+            };
+
+            if (fObj.type === 'hands-on') {
+                ativos = presData.length;
+                certs  = contarCertsPorLink(Object.values(fObj.data).filter(s => Array.isArray(s)));
+            } else {
+                // Cyberthon: participações via coluna presença/dia
+                presData.forEach(r => {
+                    if (Object.keys(r).some(k => /presen|dia /i.test(normalize(k)) && ['TRUE','SIM','V','1','X'].includes(String(r[k]).toUpperCase().trim())))
+                        ativos++;
+                });
+                // Certificados Cyberthon: mesma lógica do KPI (link/url)
+                certs = contarCertsPorLink([inscSheet, presData]);
+            }
+
             participacoes.push(ativos);
             certificados.push(certs);
         });
@@ -956,6 +1039,7 @@
             const gridColor = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)';
             const textColor = isDark ? '#E8E8E8' : '#232323';
             const barThickness = Math.max(18, Math.min(40, Math.floor(320 / labels.length)));
+            let funnelPinned = null;
             charts['c-engage-funnel'] = new Chart(document.getElementById('c-engage-funnel'), {
                 type: 'bar',
                 data: { labels, datasets: [
@@ -965,15 +1049,39 @@
                 ]},
                 options: {
                     responsive: true, maintainAspectRatio: false,
+                    interaction: { mode: 'index', intersect: false },
+                    onClick(evt, elements, chart) {
+                        const pos = { x: evt.offsetX ?? 0, y: evt.offsetY ?? 0 };
+                        if (!elements.length) { funnelPinned = null; chart.tooltip.setActiveElements([], pos); chart.update('none'); return; }
+                        const active = elements.map(e => ({ datasetIndex: e.datasetIndex, index: e.index }));
+                        const sameIndex = funnelPinned && funnelPinned[0]?.index === active[0]?.index;
+                        funnelPinned = sameIndex ? null : active;
+                        chart.tooltip.setActiveElements(funnelPinned || [], pos);
+                        chart.update('none');
+                    },
                     plugins: {
                         legend: { labels: { color: textColor } },
-                        datalabels: { color: '#fff', font: { weight: 'bold', size: 10 }, formatter: v => v > 0 ? v : '' }
+                        datalabels: { color: '#fff', font: { weight: 'bold', size: 10 }, formatter: v => v > 0 ? v : '' },
+                        tooltip: { mode: 'index', intersect: false }
                     },
                     scales: {
                         x: { ticks: { color: textColor, maxRotation: 35, font: { size: 11 } }, grid: { color: gridColor } },
                         y: { ticks: { color: textColor }, grid: { color: gridColor }, beginAtZero: true }
                     }
-                }
+                },
+                plugins: [{
+                    id: 'pinnedTooltip',
+                    afterEvent(chart, args) {
+                        if (!funnelPinned || !args.event.native) return;
+                        if (args.event.type === 'mousemove') {
+                            const pts = chart.getElementsAtEventForMode(args.event.native, 'index', { intersect: false }, true);
+                            if (!pts.length) {
+                                chart.tooltip.setActiveElements(funnelPinned, { x: args.event.x ?? 0, y: args.event.y ?? 0 });
+                                chart.update('none');
+                            }
+                        }
+                    }
+                }]
             });
         }
 
