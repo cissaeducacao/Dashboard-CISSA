@@ -407,7 +407,8 @@
         });
 
         let type = 'cyberthon';
-        if (sheetNamesLower.some(s => s.includes('diagn')) || fileName.toLowerCase().includes('hand')) type = 'hands-on';
+        if (sheetNamesLower.some(s => s.includes('mulher')) || fileName.toLowerCase().includes('mulher')) type = 'mulheres';
+        else if (sheetNamesLower.some(s => s.includes('diagn')) || fileName.toLowerCase().includes('hand')) type = 'hands-on';
         else if (sheetNamesLower.some(s => s.includes('banca') || s.includes('estudantes')) || fileName.toLowerCase().includes('cybe')) type = 'cyberthon';
 
         let year = "Desconhecido", month = "Desconhecido", monthKey = "Desconhecido";
@@ -544,8 +545,9 @@
     function updateSidebar() {
         const container = document.getElementById('dynamic-editions');
         container.innerHTML = '';
-        let cyberFiles = uploadedFiles.filter(f => f.type === 'cyberthon');
-        let handsFiles = uploadedFiles.filter(f => f.type === 'hands-on');
+        let cyberFiles    = uploadedFiles.filter(f => f.type === 'cyberthon');
+        let handsFiles    = uploadedFiles.filter(f => f.type === 'hands-on');
+        let mulheresFiles = uploadedFiles.filter(f => f.type === 'mulheres');
         let html = '';
 
         const buildMenu = (files, typeKey, title) => {
@@ -622,8 +624,9 @@
             html += geralHtml;
         }
 
-        html += buildMenu(cyberFiles, 'cyberthon', 'Cyberthon');
-        html += buildMenu(handsFiles, 'handson',   'Hands On');
+        html += buildMenu(cyberFiles,    'cyberthon', 'Cyberthon');
+        html += buildMenu(handsFiles,    'handson',   'Hands On');
+        html += buildMenu(mulheresFiles, 'mulheres',  'Mulheres em Ciberseg.');
 
         container.innerHTML = html;
         document.querySelectorAll('.project-btn.general').forEach(b => { if(b.id !== 'btn-page-dash' && b.id !== 'btn-page-portfolio') b.classList.remove('active'); });
@@ -663,12 +666,15 @@
         if (scope === 'all') Object.assign(filesToProcess, uploadedFiles);
         else if (scope.startsWith('all_year_'))    filesToProcess = uploadedFiles.filter(f => f.year === scope.replace('all_year_', ''));
         else if (scope.startsWith('all_month_'))   filesToProcess = uploadedFiles.filter(f => f.monthKey === scope.replace('all_month_', ''));
-        else if (scope === 'cyberthon_all')  filesToProcess = uploadedFiles.filter(f => f.type === 'cyberthon');
-        else if (scope === 'handson_all')    filesToProcess = uploadedFiles.filter(f => f.type === 'hands-on');
+        else if (scope === 'cyberthon_all')   filesToProcess = uploadedFiles.filter(f => f.type === 'cyberthon');
+        else if (scope === 'handson_all')     filesToProcess = uploadedFiles.filter(f => f.type === 'hands-on');
+        else if (scope === 'mulheres_all')    filesToProcess = uploadedFiles.filter(f => f.type === 'mulheres');
         else if (scope.startsWith('cyberthon_year_'))  filesToProcess = uploadedFiles.filter(f => f.type === 'cyberthon' && f.year === scope.replace('cyberthon_year_', ''));
         else if (scope.startsWith('cyberthon_month_')) filesToProcess = uploadedFiles.filter(f => f.type === 'cyberthon' && f.monthKey === scope.replace('cyberthon_month_', ''));
         else if (scope.startsWith('handson_year_'))    filesToProcess = uploadedFiles.filter(f => f.type === 'hands-on'  && f.year === scope.replace('handson_year_', ''));
         else if (scope.startsWith('handson_month_'))   filesToProcess = uploadedFiles.filter(f => f.type === 'hands-on'  && f.monthKey === scope.replace('handson_month_', ''));
+        else if (scope.startsWith('mulheres_year_'))   filesToProcess = uploadedFiles.filter(f => f.type === 'mulheres'  && f.year === scope.replace('mulheres_year_', ''));
+        else if (scope.startsWith('mulheres_month_'))  filesToProcess = uploadedFiles.filter(f => f.type === 'mulheres'  && f.monthKey === scope.replace('mulheres_month_', ''));
         else filesToProcess = uploadedFiles.filter(f => f.id === scope);
 
         let uniqueTypes = [...new Set(filesToProcess.map(f => f.type))];
@@ -677,12 +683,15 @@
         let title = "VISÃO GERAL (TODOS OS EVENTOS)";
         if      (scope === 'cyberthon_all') title = "GERAL (CYBERTHON)";
         else if (scope === 'handson_all')   title = "GERAL (HANDS ON)";
+        else if (scope === 'mulheres_all')  title = "GERAL (MULHERES EM CIBERSEGURANÇA)";
         else if (scope.startsWith('all_year_'))    title = "GERAL " + scope.replace('all_year_', '');
         else if (scope.startsWith('all_month_'))   { let [mm,yy]=scope.replace('all_month_','').split('_'); title="GERAL — "+monthNames[mm].toUpperCase()+" DE "+yy; }
         else if (scope.startsWith('cyberthon_year_'))  title = "CYBERTHON ANO: " + scope.replace('cyberthon_year_', '');
         else if (scope.startsWith('handson_year_'))    title = "HANDS ON ANO: " + scope.replace('handson_year_', '');
+        else if (scope.startsWith('mulheres_year_'))   title = "MULHERES EM CIBERSEG. ANO: " + scope.replace('mulheres_year_', '');
         else if (scope.startsWith('cyberthon_month_')) { let [mm,yy]=scope.replace('cyberthon_month_','').split('_'); title="CYBERTHON MÊS: "+monthNames[mm].toUpperCase()+" DE "+yy; }
         else if (scope.startsWith('handson_month_'))   { let [mm,yy]=scope.replace('handson_month_','').split('_');   title="HANDS ON MÊS: "+monthNames[mm].toUpperCase()+" DE "+yy; }
+        else if (scope.startsWith('mulheres_month_'))  { let [mm,yy]=scope.replace('mulheres_month_','').split('_');  title="MULHERES EM CIBERSEG. MÊS: "+monthNames[mm].toUpperCase()+" DE "+yy; }
         else if (scope !== 'all') {
             let f = uploadedFiles.find(x => x.id === scope);
             if (f) {
@@ -741,12 +750,15 @@
         if (currentScope === 'all') Object.assign(filesToProcess, uploadedFiles);
         else if (currentScope.startsWith('all_year_'))    filesToProcess = uploadedFiles.filter(f => f.year === currentScope.replace('all_year_', ''));
         else if (currentScope.startsWith('all_month_'))   filesToProcess = uploadedFiles.filter(f => f.monthKey === currentScope.replace('all_month_', ''));
-        else if (currentScope === 'cyberthon_all')  filesToProcess = uploadedFiles.filter(f => f.type === 'cyberthon');
-        else if (currentScope === 'handson_all')    filesToProcess = uploadedFiles.filter(f => f.type === 'hands-on');
+        else if (currentScope === 'cyberthon_all')   filesToProcess = uploadedFiles.filter(f => f.type === 'cyberthon');
+        else if (currentScope === 'handson_all')     filesToProcess = uploadedFiles.filter(f => f.type === 'hands-on');
+        else if (currentScope === 'mulheres_all')    filesToProcess = uploadedFiles.filter(f => f.type === 'mulheres');
         else if (currentScope.startsWith('cyberthon_year_'))  filesToProcess = uploadedFiles.filter(f => f.type === 'cyberthon' && f.year === currentScope.replace('cyberthon_year_', ''));
         else if (currentScope.startsWith('cyberthon_month_')) filesToProcess = uploadedFiles.filter(f => f.type === 'cyberthon' && f.monthKey === currentScope.replace('cyberthon_month_', ''));
         else if (currentScope.startsWith('handson_year_'))    filesToProcess = uploadedFiles.filter(f => f.type === 'hands-on'  && f.year === currentScope.replace('handson_year_', ''));
         else if (currentScope.startsWith('handson_month_'))   filesToProcess = uploadedFiles.filter(f => f.type === 'hands-on'  && f.monthKey === currentScope.replace('handson_month_', ''));
+        else if (currentScope.startsWith('mulheres_year_'))   filesToProcess = uploadedFiles.filter(f => f.type === 'mulheres'  && f.year === currentScope.replace('mulheres_year_', ''));
+        else if (currentScope.startsWith('mulheres_month_'))  filesToProcess = uploadedFiles.filter(f => f.type === 'mulheres'  && f.monthKey === currentScope.replace('mulheres_month_', ''));
         else filesToProcess = uploadedFiles.filter(f => f.id === currentScope);
 
         // getSheetData agora é global (definida acima de renderDashboard)
@@ -866,7 +878,7 @@
         }
 
         // ── KPIs e charts de engajamento (só na aba "ativos") ───────────────
-        let certsCyberthon = 0, certsHandsOn = 0, cFacil = 0, cMent = 0;
+        let certsCyberthon = 0, certsHandsOn = 0, certsMulheres = 0, cFacil = 0, cMent = 0;
         let recorrentes = 0;
         currentViewStudents.forEach(id => { if (globalStudentPresence[id] && globalStudentPresence[id].size > 1) recorrentes++; });
         let esperados = combinedInscricoes.length;
@@ -892,9 +904,21 @@
                 });
             });
             if (pType === 'cyberthon') { certsCyberthon += alunosLinked.size; cFacil += countLinks(certF); cMent += countLinks(certM); }
+            else if (pType === 'mulheres') {
+                // Certificados: conta CPFs únicos da aba de participantes/certificados
+                const certSheet = getSheetData(fObj.data, [/participante.*certif|certif.*participante|participante|certifi/]) || [];
+                const cpfSet = new Set();
+                certSheet.forEach(row => {
+                    const cpfKey = Object.keys(row).find(k => /cpf/i.test(normalize(k)));
+                    if (cpfKey && row[cpfKey] && String(row[cpfKey]).trim() !== '') {
+                        cpfSet.add(String(row[cpfKey]).replace(/\D/g, '').trim());
+                    }
+                });
+                certsMulheres += cpfSet.size;
+            }
             else certsHandsOn += alunosLinked.size;
         });
-        let totalCerts = certsCyberthon + certsHandsOn + cFacil + cMent;
+        let totalCerts = certsCyberthon + certsHandsOn + certsMulheres + cFacil + cMent;
 
         if (currentView === 'ativos') {
             let grid = document.getElementById('kpi-grid');
@@ -906,11 +930,12 @@
                     <div style="color:var(--orange);">${totalCerts}</div>
                     <div class="cert-breakdown">
                         ${(certsCyberthon + certsHandsOn) > 0 ? `<span>👨‍🎓 Alunos <b>${certsCyberthon + certsHandsOn}</b></span>` : ''}
+                        ${certsMulheres > 0 ? `<span>👩 Mulheres <b>${certsMulheres}</b></span>` : ''}
                         ${cFacil > 0 ? `<span>🎓 Facilitadores <b>${cFacil}</b></span>` : ''}
                         ${cMent  > 0 ? `<span>🧑‍💼 Mentores <b>${cMent}</b></span>`       : ''}
                     </div>
                 </div>`;
-            renderEngagement(filesToProcess, totalRealizados, recorrentes, certsCyberthon, certsHandsOn, cFacil, cMent);
+            renderEngagement(filesToProcess, totalRealizados, recorrentes, certsCyberthon, certsHandsOn, certsMulheres, cFacil, cMent);
         }
 
         let isCyber = pTypeGlobal === 'cyberthon';
@@ -943,7 +968,7 @@
         if (currentView === 'abandono') renderAbandonment(combinedInscricoes, combinedPresenca, totalAtivosCPFs, totalAtivosEmails, totalAtivosNomes, totalAtivosBase);
         else if (currentView === 'avaliacao') renderEvaluation(combinedReacao, filesToProcess);
         else if (currentView === 'banca' && pTypeGlobal === 'cyberthon') renderBanca(combinedBanca, filesToProcess);
-        else if (currentView === 'ativos') renderEngagement(filesToProcess, totalRealizados, recorrentes, certsCyberthon, certsHandsOn, cFacil, cMent);
+        else if (currentView === 'ativos') renderEngagement(filesToProcess, totalRealizados, recorrentes, certsCyberthon, certsHandsOn, certsMulheres, cFacil, cMent);
         else if (currentView === 'geral') renderDemographics(filteredData);
     }
 
@@ -976,13 +1001,30 @@
     }
     // ────────────────────────────────────────────────────────────────────────
 
-    function renderEngagement(filesToProcess, totalRealizados, recorrentes, certsCyberthon, certsHandsOn, cFacil, cMent) {
+    function renderEngagement(filesToProcess, totalRealizados, recorrentes, certsCyberthon, certsHandsOn, certsMulheres, cFacil, cMent) {
         // Funil por edição
         const labels = [], inscritos = [], participacoes = [], certificados = [], bgColors = [];
         filesToProcess.forEach(fObj => {
             const title = getDisplayName(fObj) || fObj.name;
             labels.push(title);
-            bgColors.push(fObj.type === 'cyberthon' ? '#375B95' : '#D25600');
+            bgColors.push(fObj.type === 'cyberthon' ? '#375B95' : fObj.type === 'mulheres' ? '#7B3F8E' : '#D25600');
+
+            // ── Mulheres: tudo vem da aba de participantes/certificados ────────
+            if (fObj.type === 'mulheres') {
+                const mulhSheet = getSheetData(fObj.data, [/participante.*certif|certif.*participante|participante|certifi/]) || [];
+                const cpfSetM = new Set();
+                mulhSheet.forEach(row => {
+                    const cpfKey = Object.keys(row).find(k => /cpf/i.test(normalize(k)));
+                    if (cpfKey && row[cpfKey] && String(row[cpfKey]).trim() !== '')
+                        cpfSetM.add(String(row[cpfKey]).replace(/\D/g, '').trim());
+                });
+                const n = cpfSetM.size;
+                inscritos.push(n);
+                participacoes.push(n);
+                certificados.push(n);
+                return; // pula detecção genérica abaixo
+            }
+
             // Inscrições: busca aba de estudantes/alunos — exclui abas auxiliares
             const inscSheet = getSheetData(fObj.data, [/estudantes/, /alunos/, /inscri/, /respostas/, /^form/])
                            || Object.entries(fObj.data)
@@ -1112,15 +1154,31 @@
         });
 
         const certsLabels = [], certsData = [], certsColors = [];
-        if (certsCyberthon > 0) { certsLabels.push('Alunos Cyberthon'); certsData.push(certsCyberthon); certsColors.push('#375B95'); }
-        if (certsHandsOn > 0)   { certsLabels.push('Alunos Hands On');  certsData.push(certsHandsOn);  certsColors.push('#D25600'); }
-        if (cFacil > 0)         { certsLabels.push('Facilitadores');     certsData.push(cFacil);         certsColors.push('#232323'); }
-        if (cMent > 0)          { certsLabels.push('Mentores');          certsData.push(cMent);          certsColors.push('#5A83C4'); }
+        if (certsCyberthon > 0) { certsLabels.push('Alunos — Cyberthon');             certsData.push(certsCyberthon); certsColors.push('#375B95'); }
+        if (certsHandsOn > 0)   { certsLabels.push('Alunos — Hands On');              certsData.push(certsHandsOn);  certsColors.push('#D25600'); }
+        if (certsMulheres > 0)  { certsLabels.push('Alunas — Mulheres em Ciberseg.'); certsData.push(certsMulheres); certsColors.push('#7B3F8E'); }
+        if (cFacil > 0)         { certsLabels.push('Facilitadores — Cyberthon');      certsData.push(cFacil);        certsColors.push('#5A83C4'); }
+        if (cMent > 0)          { certsLabels.push('Mentores — Cyberthon');           certsData.push(cMent);         certsColors.push('#232323'); }
         if (certsData.length > 0) {
+            const isDarkC = document.body.classList.contains('dark-mode');
+            const textColorC = isDarkC ? '#E8E8E8' : '#232323';
+            const totalCertsChart = certsData.reduce((a, b) => a + b, 0);
             charts['c-engage-certs'] = new Chart(document.getElementById('c-engage-certs'), {
                 type: 'pie',
-                data: { labels: certsLabels, datasets: [{ data: certsData, backgroundColor: certsColors }] },
-                options: { responsive:true, maintainAspectRatio:false, plugins:{ legend:{ labels:{ color: document.body.classList.contains('dark-mode') ? '#E8E8E8' : '#232323' } }, datalabels:{ color:'#fff', font:{weight:'bold'}, formatter:(v,ctx) => { let t=ctx.dataset.data.reduce((a,b)=>a+b,0); return t>0 ? Math.round(v/t*100)+'%' : ''; } } } }
+                data: { labels: certsLabels, datasets: [{ data: certsData, backgroundColor: certsColors, borderColor: isDarkC ? '#1e1e1e' : '#fff', borderWidth: 2 }] },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: true, position: 'right', labels: { color: textColorC, boxWidth: 12, font: { size: 11, family: "'DM Sans', sans-serif" } } },
+                        tooltip: { callbacks: { label: c => ` ${c.raw} (${totalCertsChart > 0 ? ((c.raw/totalCertsChart)*100).toFixed(1) : 0}%)` } },
+                        datalabels: {
+                            color: '#fff',
+                            font: { weight: 'bold', size: 11, family: "'DM Sans', sans-serif" },
+                            formatter: v => totalCertsChart > 0 && v > 0 ? ((v/totalCertsChart)*100).toFixed(1) + '%' : ''
+                        }
+                    }
+                }
             });
         }
     }
