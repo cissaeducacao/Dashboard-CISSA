@@ -626,7 +626,6 @@
 
         html += buildMenu(cyberFiles,    'cyberthon', 'Cyberthon');
         html += buildMenu(handsFiles,    'handson',   'Hands On');
-        html += buildMenu(mulheresFiles, 'mulheres',  'Mulheres em Ciberseg.');
 
         container.innerHTML = html;
         document.querySelectorAll('.project-btn.general').forEach(b => { if(b.id !== 'btn-page-dash' && b.id !== 'btn-page-portfolio') b.classList.remove('active'); });
@@ -991,6 +990,19 @@
 
     function getDisplayName(fObj) {
         if (fObj.type === 'hands-on') return extractTitle(fObj.name);
+        if (fObj.type === 'mulheres') {
+            // Remove prefixo de pasta, boilerplate do Form e mantém só a edição
+            let n = fObj.name
+                .replace(/^[^\/]+\//, '')                              // remove "Mulheres em Cibersegurança/"
+                .replace(/requerimento.*?certificado[-–\s]*/gi, '')    // remove "Requerimento de Emissão do Certificado –"
+                .replace(/\(respostas\)/gi, '')
+                .replace(/\bde mulheres em ciberseguran[cç]a\b/gi, '') // "de Mulheres em Cibersegurança"
+                .replace(/mulheres em ciberseguran[cç]a/gi, '')
+                .replace(/\s{2,}/g, ' ')
+                .replace(/^[-–,\s]+|[-–,\s]+$/g, '')
+                .trim();
+            return 'Mulheres em Cibersegurança';
+        }
         // Cyberthon: remove prefixo de pasta (ex: "Cyberthon/"), "CISSA" e formata data
         return fObj.name
             .replace(/^[^\/]+\//, '')       // remove "Cyberthon/" ou qualquer prefixo de pasta
@@ -1104,9 +1116,9 @@
             charts['c-engage-funnel'] = new Chart(document.getElementById('c-engage-funnel'), {
                 type: 'bar',
                 data: { labels, datasets: [
-                    { label: 'Inscrições',    data: inscritos,     backgroundColor: bgColors.map(c => c + 'cc'), barThickness },
-                    { label: 'Participações', data: participacoes, backgroundColor: bgColors,                   barThickness },
-                    { label: 'Certificados',  data: certificados,  backgroundColor: '#232323',                  barThickness }
+                    { label: 'Inscrições',    data: inscritos,     backgroundColor: '#5A83C4', barThickness },
+                    { label: 'Participações', data: participacoes, backgroundColor: '#375B95', barThickness },
+                    { label: 'Certificados',  data: certificados,  backgroundColor: '#232323', barThickness }
                 ]},
                 options: {
                     responsive: true, maintainAspectRatio: false,
@@ -1156,7 +1168,7 @@
         const certsLabels = [], certsData = [], certsColors = [];
         if (certsCyberthon > 0) { certsLabels.push('Alunos — Cyberthon');             certsData.push(certsCyberthon); certsColors.push('#375B95'); }
         if (certsHandsOn > 0)   { certsLabels.push('Alunos — Hands On');              certsData.push(certsHandsOn);  certsColors.push('#D25600'); }
-        if (certsMulheres > 0)  { certsLabels.push('Alunas — Mulheres em Ciberseg.'); certsData.push(certsMulheres); certsColors.push('#7B3F8E'); }
+        if (certsMulheres > 0)  { certsLabels.push('Mulheres em Cibersegurança'); certsData.push(certsMulheres); certsColors.push('#7B3F8E'); }
         if (cFacil > 0)         { certsLabels.push('Facilitadores — Cyberthon');      certsData.push(cFacil);        certsColors.push('#5A83C4'); }
         if (cMent > 0)          { certsLabels.push('Mentores — Cyberthon');           certsData.push(cMent);         certsColors.push('#232323'); }
         if (certsData.length > 0) {
