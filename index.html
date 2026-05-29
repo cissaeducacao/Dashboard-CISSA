@@ -411,19 +411,24 @@
         else if (sheetNamesLower.some(s => s.includes('diagn')) || fileName.toLowerCase().includes('hand')) type = 'hands-on';
         else if (sheetNamesLower.some(s => s.includes('banca') || s.includes('estudantes')) || fileName.toLowerCase().includes('cybe')) type = 'cyberthon';
 
-        let year = "Desconhecido", month = "Desconhecido", monthKey = "Desconhecido";
-        let nameMatch = fileName.match(/(\d{2})_(\d{4})/);
-        if (nameMatch) { month = nameMatch[1]; year = nameMatch[2]; }
-        else {
-            let yMatch = fileName.match(/(20\d{2})/);
-            if (yMatch) year = yMatch[1];
+        let year = "Desconhecido", month = "Desconhecido", day = "00", monthKey = "Desconhecido";
+        // Tenta extrair dia + mês + ano (ex: "08 09_04_2026" ou "08_04_2026")
+        const fullDate = fileName.match(/(\d{1,2})(?:\s+\d{1,2})?\s*[_\/](\d{2})[_\/](20\d{2})/);
+        if (fullDate) {
+            day = fullDate[1].padStart(2, '0');
+            month = fullDate[2];
+            year = fullDate[3];
+        } else {
+            const nameMatch = fileName.match(/(\d{2})_(\d{4})/);
+            if (nameMatch) { month = nameMatch[1]; year = nameMatch[2]; }
+            else { const yMatch = fileName.match(/(20\d{2})/); if (yMatch) year = yMatch[1]; }
         }
         if (month !== "Desconhecido" && year !== "Desconhecido") monthKey = month + "_" + year;
 
         let fileId = 'file_' + Date.now() + Math.floor(Math.random() * 1000);
         let fileDisplayName = fileName.replace(/\.[^/.]+$/, "").replace(/Cybethon/g, 'Cyberthon');
 
-        uploadedFiles.push({ id: fileId, name: fileDisplayName, type: type, data: sheets, year: year, monthKey: monthKey });
+        uploadedFiles.push({ id: fileId, name: fileDisplayName, type: type, data: sheets, year, month, day, monthKey });
     }
 
     // ── Auth Google ──────────────────────────────────────────────────────────
@@ -576,16 +581,12 @@
             }
 
             menuHtml += `<div class="sub-group-title">Edições</div>`;
-            // Ordenar cronologicamente para numerar as edições corretamente
-            const sortedFiles = [...files].sort((a, b) => {
-                const key = f => {
-                    if (f.monthKey && f.monthKey !== 'Desconhecido') { const [mm,yy]=f.monthKey.split('_'); return parseInt(yy)*100+parseInt(mm); }
-                    return parseInt(f.year||0)*100;
-                };
-                return key(a) - key(b);
-            });
-            sortedFiles.forEach((f, i) => {
-                const ord  = (i + 1) + 'ª Ed.';
+            const sortKey = f => parseInt(f.year||0)*10000 + parseInt(f.month||0)*100 + parseInt(f.day||0);
+            // Numerar em ordem cronológica (1ª = mais antiga), exibir mais recente no topo
+            const chronoFiles = [...files].sort((a, b) => sortKey(a) - sortKey(b));
+            const editionNum  = new Map(chronoFiles.map((f, i) => [f.id, i + 1]));
+            [...files].sort((a, b) => sortKey(b) - sortKey(a)).forEach(f => {
+                const ord  = editionNum.get(f.id) + 'ª Ed.';
                 const tema = f.type === 'cyberthon'
                     ? `Cyberthon ${f.year}`
                     : extractTitle(f.name) || f.name;
@@ -640,13 +641,7 @@
 
     // Retorna o número de edição (ordem cronológica) de um arquivo entre os do mesmo tipo
     function getEditionNumber(file) {
-        const sortKey = f => {
-            if (f.monthKey && f.monthKey !== 'Desconhecido') {
-                const [mm, yy] = f.monthKey.split('_');
-                return parseInt(yy) * 100 + parseInt(mm);
-            }
-            return parseInt(f.year || 0) * 100;
-        };
+        const sortKey = f => parseInt(f.year||0)*10000 + parseInt(f.month||0)*100 + parseInt(f.day||0);
         const sorted = uploadedFiles
             .filter(f => f.type === file.type)
             .sort((a, b) => sortKey(a) - sortKey(b));
