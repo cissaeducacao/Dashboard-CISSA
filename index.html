@@ -1019,7 +1019,7 @@
         filesToProcess.forEach(fObj => {
             const title = getDisplayName(fObj) || fObj.name;
             labels.push(title);
-            bgColors.push(fObj.type === 'cyberthon' ? '#375B95' : fObj.type === 'mulheres' ? '#7B3F8E' : '#D25600');
+            bgColors.push(fObj.type === 'cyberthon' ? '#375B95' : fObj.type === 'mulheres' ? '#F37623' : '#D25600');
 
             // ── Mulheres: tudo vem da aba de participantes/certificados ────────
             if (fObj.type === 'mulheres') {
@@ -1168,7 +1168,7 @@
         const certsLabels = [], certsData = [], certsColors = [];
         if (certsCyberthon > 0) { certsLabels.push('Alunos — Cyberthon');             certsData.push(certsCyberthon); certsColors.push('#375B95'); }
         if (certsHandsOn > 0)   { certsLabels.push('Alunos — Hands On');              certsData.push(certsHandsOn);  certsColors.push('#D25600'); }
-        if (certsMulheres > 0)  { certsLabels.push('Mulheres em Cibersegurança'); certsData.push(certsMulheres); certsColors.push('#7B3F8E'); }
+        if (certsMulheres > 0)  { certsLabels.push('Mulheres em Cibersegurança'); certsData.push(certsMulheres); certsColors.push('#F37623'); }
         if (cFacil > 0)         { certsLabels.push('Facilitadores — Cyberthon');      certsData.push(cFacil);        certsColors.push('#5A83C4'); }
         if (cMent > 0)          { certsLabels.push('Mentores — Cyberthon');           certsData.push(cMent);         certsColors.push('#232323'); }
         if (certsData.length > 0) {
