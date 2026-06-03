@@ -1663,7 +1663,10 @@
             return (nk.includes('avalia') || nk.includes('escala'))
                 && !nk.includes('0 a 10')
                 && !nk.includes('recomendar')
-                && !nk.includes('nps');
+                && !nk.includes('nps')
+                && !nk.includes('workshop')
+                && !nk.includes('indicar')
+                && !nk.includes('sugest');
         });
         let npsKey = allKeys.find(k => {
             const nk = normalize(k);
