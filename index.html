@@ -438,18 +438,20 @@
         return found ? dataObj[found] : null;
     }
     
+    function rowHasCertLink(row) {
+        // Formato antigo: coluna nomeada "link" ou "url"
+        if (Object.keys(row).some(k => {
+            const nk = normalize(k);
+            const val = String(row[k] || '').trim();
+            return (nk.includes('link') || nk.includes('url')) && val !== '' && val !== 'undefined' && val !== 'null';
+        })) return true;
+        // Formato novo: colunas sem cabeçalho (ex: __EMPTY_3) com URL do Drive como valor
+        return Object.values(row).some(v => String(v || '').includes('https://drive.google.com/file/d/'));
+    }
+
     function countLinks(sheetData) {
         if (!sheetData) return 0;
-        let count = 0;
-        sheetData.forEach(row => {
-            let hasLink = Object.keys(row).some(k => {
-                let nk = normalize(k);
-                let val = String(row[k]).trim();
-                return (nk.includes('link') || nk.includes('url')) && val !== '' && val !== 'undefined' && val !== 'null';
-            });
-            if (hasLink) count++;
-        });
-        return count;
+        return sheetData.filter(row => rowHasCertLink(row)).length;
     }
 
     function getIdsFromRow(row) {
@@ -654,7 +656,7 @@
             }
 
             menuHtml += `<div class="sub-group-title">Edições</div>`;
-            const sortKey = f => parseInt(f.year||0)*10000 + parseInt(f.month||0)*100 + parseInt(f.day||0);
+            const sortKey = f => (parseInt(f.year)||0)*10000 + (parseInt(f.month)||0)*100 + (parseInt(f.day)||0);
             // Numerar em ordem cronológica (1ª = mais antiga), exibir mais recente no topo
             const chronoFiles = [...files].sort((a, b) => sortKey(a) - sortKey(b));
             const editionNum  = new Map(chronoFiles.map((f, i) => [f.id, i + 1]));
@@ -715,7 +717,7 @@
 
     // Retorna o número de edição (ordem cronológica) de um arquivo entre os do mesmo tipo
     function getEditionNumber(file) {
-        const sortKey = f => parseInt(f.year||0)*10000 + parseInt(f.month||0)*100 + parseInt(f.day||0);
+        const sortKey = f => (parseInt(f.year)||0)*10000 + (parseInt(f.month)||0)*100 + (parseInt(f.day)||0);
         const sorted = uploadedFiles
             .filter(f => f.type === file.type)
             .sort((a, b) => sortKey(a) - sortKey(b));
@@ -925,7 +927,14 @@
 
             activeRows.forEach(row => {
                 let ids = getIdsFromRow(row), isActive = false;
-                if (pType === 'hands-on' || pType === 'summer-job') isActive = true;
+                if (pType === 'hands-on') isActive = true;
+                else if (pType === 'summer-job') {
+                    const freqKey  = Object.keys(row).find(k => /frequ[eê]ncia|frequencia/i.test(normalize(k)));
+                    const totalKey = Object.keys(row).find(k => /total.*pres|pres.*total/i.test(normalize(k)));
+                    if (freqKey) { const pct = parseFloat(String(row[freqKey]).replace('%','').replace(',','.')); isActive = !isNaN(pct) && pct > 0; }
+                    else if (totalKey) { const t = parseFloat(String(row[totalKey]).replace(',','.')); isActive = !isNaN(t) && t > 0; }
+                    else isActive = true;
+                }
                 else {
                     let hasPresenceCol = Object.keys(row).some(k => /presen|dia /i.test(normalize(k)));
                     if (hasPresenceCol) {
@@ -989,8 +998,7 @@
             [insc, pres].forEach(sheet => {
                 if(!sheet) return;
                 sheet.forEach(row => {
-                    let hasLink = Object.keys(row).some(k => (/link|url/i.test(normalize(k))) && String(row[k]).trim() !== '' && String(row[k]).trim() !== 'undefined' && String(row[k]).trim() !== 'null');
-                    if (hasLink) {
+                    if (rowHasCertLink(row)) {
                         let ids = getIdsFromRow(row);
                         if (ids.cpfs.length) alunosLinked.add(ids.cpfs[0]);
                         else if (ids.emails.length) alunosLinked.add(ids.emails[0]);
@@ -1015,8 +1023,7 @@
                 // Certificados alunos: links na LISTA DE PRESENÇA
                 let summerLinked = new Set();
                 pres.forEach(row => {
-                    let hasLink = Object.keys(row).some(k => (/link|url/i.test(normalize(k))) && String(row[k]).trim() !== '' && !['undefined','null'].includes(String(row[k]).trim().toLowerCase()));
-                    if (hasLink) {
+                    if (rowHasCertLink(row)) {
                         let ids = getIdsFromRow(row);
                         if (ids.cpfs.length) summerLinked.add(ids.cpfs[0]);
                         else if (ids.emails.length) summerLinked.add(ids.emails[0]);
@@ -1171,12 +1178,7 @@
                 const certSet = new Set();
                 sheets.forEach(sheet => {
                     (sheet || []).forEach(row => {
-                        const hasLink = Object.keys(row).some(k =>
-                            /link|url/i.test(normalize(k)) &&
-                            String(row[k]).trim() !== '' &&
-                            !['undefined','null'].includes(String(row[k]).trim().toLowerCase())
-                        );
-                        if (hasLink) {
+                        if (rowHasCertLink(row)) {
                             const cpfKey   = Object.keys(row).find(k => /cpf/i.test(normalize(k)));
                             const emailKey = Object.keys(row).find(k => /email/i.test(normalize(k)));
                             const nomeKey  = Object.keys(row).find(k => /^nome/i.test(normalize(k)));
@@ -1189,10 +1191,16 @@
             };
 
             if (fObj.type === 'summer-job') {
-                // Inscrições: indicados; Participações + Certificados: LISTA DE PRESENÇA
+                // Inscrições: indicados; Participações: quem tem freq > 0; Certificados: links
                 const indicSheet = getSheetData(fObj.data, [/indicad/]) || [];
                 inscritos[inscritos.length - 1] = indicSheet.length;
-                ativos = presData.length;
+                ativos = presData.filter(r => {
+                    const fk = Object.keys(r).find(k => /frequ[eê]ncia|frequencia/i.test(normalize(k)));
+                    const tk = Object.keys(r).find(k => /total.*pres|pres.*total/i.test(normalize(k)));
+                    if (fk) { const p = parseFloat(String(r[fk]).replace('%','').replace(',','.')); return !isNaN(p) && p > 0; }
+                    if (tk) { const t = parseFloat(String(r[tk]).replace(',','.')); return !isNaN(t) && t > 0; }
+                    return true;
+                }).length;
                 certs  = contarCertsPorLink([presData]);
             } else if (fObj.type === 'hands-on') {
                 ativos = presData.length;
@@ -1795,8 +1803,7 @@
             } else if (fObj.type === 'summer-job') {
                 const linked = new Set();
                 pres.forEach(r => {
-                    const hasLink = Object.keys(r).some(k => /link|url/i.test(normalize(k)) && String(r[k]).trim() && !['undefined','null'].includes(String(r[k]).trim().toLowerCase()));
-                    if (hasLink) {
+                    if (rowHasCertLink(r)) {
                         const ids = getIdsFromRow(r);
                         const id = ids.cpfs[0] || ids.emails[0] || ids.nomes[0];
                         if (id) linked.add(id);
@@ -1806,8 +1813,7 @@
             } else {
                 const linked = new Set();
                 pres.forEach(r => {
-                    const hasLink = Object.keys(r).some(k => /link|url/i.test(normalize(k)) && String(r[k]).trim() && !['undefined','null'].includes(String(r[k]).trim().toLowerCase()));
-                    if (hasLink) {
+                    if (rowHasCertLink(r)) {
                         const ids = getIdsFromRow(r);
                         const id = ids.cpfs[0] || ids.emails[0] || ids.nomes[0];
                         if (id) linked.add(id);
@@ -2091,7 +2097,13 @@
             let ativos = 0;
 
             if (fObj.type === 'summer-job') {
-                ativos = presData.length;
+                ativos = presData.filter(r => {
+                    const fk = Object.keys(r).find(k => /frequ[eê]ncia|frequencia/i.test(normalize(k)));
+                    const tk = Object.keys(r).find(k => /total.*pres|pres.*total/i.test(normalize(k)));
+                    if (fk) { const p = parseFloat(String(r[fk]).replace('%','').replace(',','.')); return !isNaN(p) && p > 0; }
+                    if (tk) { const t = parseFloat(String(r[tk]).replace(',','.')); return !isNaN(t) && t > 0; }
+                    return true;
+                }).length;
             } else if (fObj.type === 'mulheres') {
                 const certS = findSheet([/participante.*certif|certif.*participante|participante|certifi/]);
                 const cpfSet = new Set();
@@ -2114,9 +2126,7 @@
             }
 
             // ── Contagem de certificados ───────────────────────────────────
-            const hasLink = row => Object.keys(row).some(k =>
-                /link|url/i.test(normalize(k)) && String(row[k]).trim() &&
-                !['undefined','null'].includes(String(row[k]).trim().toLowerCase()));
+            const hasLink = row => rowHasCertLink(row);
 
             const idOf = row => { const ids = getIdsFromRow(row); return ids.cpfs[0]||ids.emails[0]||ids.nomes[0]; };
 
