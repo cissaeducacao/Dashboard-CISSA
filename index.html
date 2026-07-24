@@ -475,7 +475,28 @@
         let sheets = {};
         let sheetNamesLower = [];
         workbook.SheetNames.forEach(n => {
-            sheets[n] = XLSX.utils.sheet_to_json(workbook.Sheets[n]);
+            const ws = workbook.Sheets[n];
+            const jsonRows = XLSX.utils.sheet_to_json(ws);
+            // Colunas sem cabeçalho (novo formato Summer Job) ficam fora do sheet_to_json
+            // padrão. Relemos como array raw para capturar Drive URLs nessas colunas.
+            try {
+                const raw = XLSX.utils.sheet_to_json(ws, {header: 1});
+                const urlMap = new Map();
+                raw.slice(1).forEach(r => {
+                    const url = r.find(c => typeof c === 'string' && c.includes('https://drive.google.com/file/d/'));
+                    if (url && r[0]) urlMap.set(String(r[0]).trim().toLowerCase(), url);
+                });
+                if (urlMap.size > 0) {
+                    jsonRows.forEach(row => {
+                        const nome = row[Object.keys(row)[0]];
+                        if (nome) {
+                            const key = String(nome).trim().toLowerCase();
+                            if (urlMap.has(key)) row.__certLink__ = urlMap.get(key);
+                        }
+                    });
+                }
+            } catch(e) {}
+            sheets[n] = jsonRows;
             sheetNamesLower.push(n.toLowerCase());
         });
 
