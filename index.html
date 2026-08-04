@@ -1422,6 +1422,7 @@
             if (funnelInner) {
                 const outerW = funnelInner.parentElement.clientWidth || 600;
                 funnelInner.style.width = Math.max(outerW, labels.length * 75) + 'px';
+                funnelInner.parentElement.scrollLeft = 0;
             }
             let funnelPinned = null;
             charts['c-engage-funnel'] = new Chart(document.getElementById('c-engage-funnel'), {
