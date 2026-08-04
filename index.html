@@ -171,6 +171,8 @@
             <button class="tab-btn" id="tab-abandon" onclick="switchView('abandono')">Evasão e Retenção</button>
             <button class="tab-btn" id="tab-eval" onclick="switchView('avaliacao')">Avaliação de Reação</button>
             <button class="tab-btn hidden" id="tab-banca" onclick="switchView('banca')">Resultados da Banca</button>
+            <button class="tab-btn hidden" id="tab-mc-perm" onclick="switchView('mc-perm')">Permanência</button>
+            <button class="tab-btn hidden" id="tab-mc-cert" onclick="switchView('mc-cert')">Certificação</button>
         </div>
         <div class="kpi-grid" id="kpi-grid">
             <div class="kpi-card" style="grid-column: span 3;"><span>Status</span><div style="font-size: 1.1rem; color: var(--text-muted);">Carregando dados…</div></div>
@@ -196,7 +198,7 @@
         </div>
         <div id="engagement-content" class="hidden">
             <div class="chart-grid">
-                <div class="chart-card full-width" style="height:420px;"><h3>Funil de Participação por Edição</h3><div class="canvas-wrapper"><canvas id="c-engage-funnel"></canvas></div></div>
+                <div class="chart-card full-width" style="height:420px;"><h3>Funil de Participação por Edição</h3><div style="flex:1;overflow-x:auto;overflow-y:hidden;min-height:0;"><div id="funnel-scroll-inner" style="position:relative;height:100%;min-width:100%;"><canvas id="c-engage-funnel"></canvas></div></div></div>
                 <div class="chart-card" style="height:380px;"><h3>Certificados por Programa</h3><div class="canvas-wrapper"><canvas id="c-engage-certs"></canvas></div></div>
             </div>
         </div>
@@ -235,6 +237,12 @@
                     <div class="comment-list" id="banca-comment-list"></div>
                 </div>
             </div>
+        </div>
+        <div id="mc-perm-content" class="hidden">
+            <div id="mc-perm-body"></div>
+        </div>
+        <div id="mc-cert-content" class="hidden">
+            <div id="mc-cert-body"></div>
         </div>
     </div>
 
@@ -501,7 +509,8 @@
         });
 
         let type = 'cyberthon';
-        if (sheetNamesLower.some(s => s.includes('mulher')) || fileName.toLowerCase().includes('mulher')) type = 'mulheres';
+        if (fileName.toLowerCase().includes('masterclass') || sheetNamesLower.some(s => s.includes('masterclass'))) type = 'masterclass';
+        else if (sheetNamesLower.some(s => s.includes('mulher')) || fileName.toLowerCase().includes('mulher')) type = 'mulheres';
         else if (fileName.toLowerCase().includes('summer') || sheetNamesLower.some(s => s.includes('summer'))) type = 'summer-job';
         else if (sheetNamesLower.some(s => s.includes('diagn')) || fileName.toLowerCase().includes('hand')) type = 'hands-on';
         else if (sheetNamesLower.some(s => s.includes('banca') || s.includes('estudantes')) || fileName.toLowerCase().includes('cybe')) type = 'cyberthon';
@@ -645,10 +654,11 @@
     function updateSidebar() {
         const container = document.getElementById('dynamic-editions');
         container.innerHTML = '';
-        let cyberFiles    = uploadedFiles.filter(f => f.type === 'cyberthon');
-        let handsFiles    = uploadedFiles.filter(f => f.type === 'hands-on');
-        let mulheresFiles = uploadedFiles.filter(f => f.type === 'mulheres');
-        let summerFiles   = uploadedFiles.filter(f => f.type === 'summer-job');
+        let cyberFiles      = uploadedFiles.filter(f => f.type === 'cyberthon');
+        let handsFiles      = uploadedFiles.filter(f => f.type === 'hands-on');
+        let mulheresFiles   = uploadedFiles.filter(f => f.type === 'mulheres');
+        let summerFiles     = uploadedFiles.filter(f => f.type === 'summer-job');
+        let masterFiles     = uploadedFiles.filter(f => f.type === 'masterclass');
         let html = '';
 
         const buildMenu = (files, typeKey, title) => {
@@ -721,9 +731,10 @@
             html += geralHtml;
         }
 
-        html += buildMenu(cyberFiles,   'cyberthon',  'Cyberthon');
-        html += buildMenu(handsFiles,   'handson',    'Hands On');
-        html += buildMenu(summerFiles,  'summerjob',  'Summer Job');
+        html += buildMenu(cyberFiles,   'cyberthon',   'Cyberthon');
+        html += buildMenu(handsFiles,   'handson',     'Hands On');
+        html += buildMenu(summerFiles,  'summerjob',   'Summer Job');
+        html += buildMenu(masterFiles,  'masterclass', 'Masterclass');
 
         container.innerHTML = html;
         document.querySelectorAll('.project-btn.general').forEach(b => { if(!['btn-page-dash','btn-page-portfolio','btn-page-embrapii'].includes(b.id)) b.classList.remove('active'); });
@@ -760,15 +771,18 @@
         else if (scope === 'cyberthon_all')   filesToProcess = uploadedFiles.filter(f => f.type === 'cyberthon');
         else if (scope === 'handson_all')     filesToProcess = uploadedFiles.filter(f => f.type === 'hands-on');
         else if (scope === 'mulheres_all')    filesToProcess = uploadedFiles.filter(f => f.type === 'mulheres');
-        else if (scope === 'summerjob_all')   filesToProcess = uploadedFiles.filter(f => f.type === 'summer-job');
-        else if (scope.startsWith('cyberthon_year_'))  filesToProcess = uploadedFiles.filter(f => f.type === 'cyberthon'  && f.year === scope.replace('cyberthon_year_', ''));
-        else if (scope.startsWith('cyberthon_month_')) filesToProcess = uploadedFiles.filter(f => f.type === 'cyberthon'  && f.monthKey === scope.replace('cyberthon_month_', ''));
-        else if (scope.startsWith('handson_year_'))    filesToProcess = uploadedFiles.filter(f => f.type === 'hands-on'   && f.year === scope.replace('handson_year_', ''));
-        else if (scope.startsWith('handson_month_'))   filesToProcess = uploadedFiles.filter(f => f.type === 'hands-on'   && f.monthKey === scope.replace('handson_month_', ''));
-        else if (scope.startsWith('mulheres_year_'))   filesToProcess = uploadedFiles.filter(f => f.type === 'mulheres'   && f.year === scope.replace('mulheres_year_', ''));
-        else if (scope.startsWith('mulheres_month_'))  filesToProcess = uploadedFiles.filter(f => f.type === 'mulheres'   && f.monthKey === scope.replace('mulheres_month_', ''));
-        else if (scope.startsWith('summerjob_year_'))  filesToProcess = uploadedFiles.filter(f => f.type === 'summer-job' && f.year === scope.replace('summerjob_year_', ''));
-        else if (scope.startsWith('summerjob_month_')) filesToProcess = uploadedFiles.filter(f => f.type === 'summer-job' && f.monthKey === scope.replace('summerjob_month_', ''));
+        else if (scope === 'summerjob_all')     filesToProcess = uploadedFiles.filter(f => f.type === 'summer-job');
+        else if (scope === 'masterclass_all')   filesToProcess = uploadedFiles.filter(f => f.type === 'masterclass');
+        else if (scope.startsWith('cyberthon_year_'))     filesToProcess = uploadedFiles.filter(f => f.type === 'cyberthon'    && f.year === scope.replace('cyberthon_year_', ''));
+        else if (scope.startsWith('cyberthon_month_'))    filesToProcess = uploadedFiles.filter(f => f.type === 'cyberthon'    && f.monthKey === scope.replace('cyberthon_month_', ''));
+        else if (scope.startsWith('handson_year_'))       filesToProcess = uploadedFiles.filter(f => f.type === 'hands-on'     && f.year === scope.replace('handson_year_', ''));
+        else if (scope.startsWith('handson_month_'))      filesToProcess = uploadedFiles.filter(f => f.type === 'hands-on'     && f.monthKey === scope.replace('handson_month_', ''));
+        else if (scope.startsWith('mulheres_year_'))      filesToProcess = uploadedFiles.filter(f => f.type === 'mulheres'     && f.year === scope.replace('mulheres_year_', ''));
+        else if (scope.startsWith('mulheres_month_'))     filesToProcess = uploadedFiles.filter(f => f.type === 'mulheres'     && f.monthKey === scope.replace('mulheres_month_', ''));
+        else if (scope.startsWith('summerjob_year_'))     filesToProcess = uploadedFiles.filter(f => f.type === 'summer-job'   && f.year === scope.replace('summerjob_year_', ''));
+        else if (scope.startsWith('summerjob_month_'))    filesToProcess = uploadedFiles.filter(f => f.type === 'summer-job'   && f.monthKey === scope.replace('summerjob_month_', ''));
+        else if (scope.startsWith('masterclass_year_'))   filesToProcess = uploadedFiles.filter(f => f.type === 'masterclass'  && f.year === scope.replace('masterclass_year_', ''));
+        else if (scope.startsWith('masterclass_month_'))  filesToProcess = uploadedFiles.filter(f => f.type === 'masterclass'  && f.monthKey === scope.replace('masterclass_month_', ''));
         else filesToProcess = uploadedFiles.filter(f => f.id === scope);
 
         let uniqueTypes = [...new Set(filesToProcess.map(f => f.type))];
@@ -808,7 +822,7 @@
         const showBanca = pTypeGlobal === 'cyberthon';
         document.getElementById('tab-banca').classList.toggle('hidden', !showBanca);
         if (currentView === 'banca' && !showBanca) switchView('geral');
-        else if (pTypeGlobal === 'summer-job') switchView('ativos');
+        else if (pTypeGlobal === 'summer-job' || pTypeGlobal === 'masterclass') switchView('ativos');
         else switchView('geral');
     }
 
@@ -823,6 +837,8 @@
         document.getElementById('abandon-content').classList.toggle('hidden',      view !== 'abandono');
         document.getElementById('evaluation-content').classList.toggle('hidden',   view !== 'avaliacao');
         document.getElementById('banca-content').classList.toggle('hidden',        view !== 'banca');
+        document.getElementById('mc-perm-content').classList.toggle('hidden',      view !== 'mc-perm');
+        document.getElementById('mc-cert-content').classList.toggle('hidden',      view !== 'mc-cert');
         document.getElementById('kpi-grid').classList.toggle('hidden', view !== 'ativos');
 
         renderDashboard();
@@ -852,15 +868,18 @@
         else if (currentScope === 'cyberthon_all')   filesToProcess = uploadedFiles.filter(f => f.type === 'cyberthon');
         else if (currentScope === 'handson_all')     filesToProcess = uploadedFiles.filter(f => f.type === 'hands-on');
         else if (currentScope === 'mulheres_all')    filesToProcess = uploadedFiles.filter(f => f.type === 'mulheres');
-        else if (currentScope === 'summerjob_all')   filesToProcess = uploadedFiles.filter(f => f.type === 'summer-job');
-        else if (currentScope.startsWith('cyberthon_year_'))  filesToProcess = uploadedFiles.filter(f => f.type === 'cyberthon'  && f.year === currentScope.replace('cyberthon_year_', ''));
-        else if (currentScope.startsWith('cyberthon_month_')) filesToProcess = uploadedFiles.filter(f => f.type === 'cyberthon'  && f.monthKey === currentScope.replace('cyberthon_month_', ''));
-        else if (currentScope.startsWith('handson_year_'))    filesToProcess = uploadedFiles.filter(f => f.type === 'hands-on'   && f.year === currentScope.replace('handson_year_', ''));
-        else if (currentScope.startsWith('handson_month_'))   filesToProcess = uploadedFiles.filter(f => f.type === 'hands-on'   && f.monthKey === currentScope.replace('handson_month_', ''));
-        else if (currentScope.startsWith('mulheres_year_'))   filesToProcess = uploadedFiles.filter(f => f.type === 'mulheres'   && f.year === currentScope.replace('mulheres_year_', ''));
-        else if (currentScope.startsWith('mulheres_month_'))  filesToProcess = uploadedFiles.filter(f => f.type === 'mulheres'   && f.monthKey === currentScope.replace('mulheres_month_', ''));
-        else if (currentScope.startsWith('summerjob_year_'))  filesToProcess = uploadedFiles.filter(f => f.type === 'summer-job' && f.year === currentScope.replace('summerjob_year_', ''));
-        else if (currentScope.startsWith('summerjob_month_')) filesToProcess = uploadedFiles.filter(f => f.type === 'summer-job' && f.monthKey === currentScope.replace('summerjob_month_', ''));
+        else if (currentScope === 'summerjob_all')     filesToProcess = uploadedFiles.filter(f => f.type === 'summer-job');
+        else if (currentScope === 'masterclass_all')   filesToProcess = uploadedFiles.filter(f => f.type === 'masterclass');
+        else if (currentScope.startsWith('cyberthon_year_'))     filesToProcess = uploadedFiles.filter(f => f.type === 'cyberthon'   && f.year === currentScope.replace('cyberthon_year_', ''));
+        else if (currentScope.startsWith('cyberthon_month_'))    filesToProcess = uploadedFiles.filter(f => f.type === 'cyberthon'   && f.monthKey === currentScope.replace('cyberthon_month_', ''));
+        else if (currentScope.startsWith('handson_year_'))       filesToProcess = uploadedFiles.filter(f => f.type === 'hands-on'    && f.year === currentScope.replace('handson_year_', ''));
+        else if (currentScope.startsWith('handson_month_'))      filesToProcess = uploadedFiles.filter(f => f.type === 'hands-on'    && f.monthKey === currentScope.replace('handson_month_', ''));
+        else if (currentScope.startsWith('mulheres_year_'))      filesToProcess = uploadedFiles.filter(f => f.type === 'mulheres'    && f.year === currentScope.replace('mulheres_year_', ''));
+        else if (currentScope.startsWith('mulheres_month_'))     filesToProcess = uploadedFiles.filter(f => f.type === 'mulheres'    && f.monthKey === currentScope.replace('mulheres_month_', ''));
+        else if (currentScope.startsWith('summerjob_year_'))     filesToProcess = uploadedFiles.filter(f => f.type === 'summer-job'  && f.year === currentScope.replace('summerjob_year_', ''));
+        else if (currentScope.startsWith('summerjob_month_'))    filesToProcess = uploadedFiles.filter(f => f.type === 'summer-job'  && f.monthKey === currentScope.replace('summerjob_month_', ''));
+        else if (currentScope.startsWith('masterclass_year_'))   filesToProcess = uploadedFiles.filter(f => f.type === 'masterclass' && f.year === currentScope.replace('masterclass_year_', ''));
+        else if (currentScope.startsWith('masterclass_month_'))  filesToProcess = uploadedFiles.filter(f => f.type === 'masterclass' && f.monthKey === currentScope.replace('masterclass_month_', ''));
         else filesToProcess = uploadedFiles.filter(f => f.id === currentScope);
 
         // getSheetData agora é global (definida acima de renderDashboard)
@@ -899,6 +918,11 @@
 
         filesToProcess.forEach(fObj => {
             let data = fObj.data, pType = fObj.type;
+            if (pType === 'masterclass') {
+                const mc = getMasterclassMetrics(fObj);
+                totalRealizados += mc.partic;
+                return;
+            }
             let insc = getSheetData(data, [/estudantes/, /inscri/, /respostas/, /form/]);
             if (!insc) {
                  let sortedSheets = Object.keys(data).sort((a,b) => data[b].length - data[a].length);
@@ -980,7 +1004,8 @@
             });
         });
 
-        if (combinedInscricoes.length === 0) { clearDashboardState(); return; }
+        const hasMasterclassFiles = filesToProcess.some(f => f.type === 'masterclass');
+        if (combinedInscricoes.length === 0 && !hasMasterclassFiles) { clearDashboardState(); return; }
 
         let filteredData = combinedInscricoes;
         if (currentView === 'ativos' || currentView === 'avaliacao') {
@@ -992,7 +1017,7 @@
 
         let warningBox = document.getElementById('data-warning');
         if (warningBox) {
-            if (currentView === 'ativos' && totalRealizados > 0) {
+            if (currentView === 'ativos' && totalRealizados > 0 && !hasMasterclassFiles) {
                 let matchRate = filteredData.length / totalRealizados;
                 if (matchRate <= 0.3) {
                     warningBox.classList.remove('hidden');
@@ -1003,10 +1028,11 @@
         }
 
         // ── KPIs e charts de engajamento (só na aba "ativos") ───────────────
-        let certsCyberthon = 0, certsHandsOn = 0, certsMulheres = 0, certsSummer = 0, cFacil = 0, cMent = 0;
+        let certsCyberthon = 0, certsHandsOn = 0, certsMulheres = 0, certsSummer = 0, certsMasterclass = 0, cFacil = 0, cMent = 0;
         let recorrentes = 0;
         currentViewStudents.forEach(id => { if (globalStudentPresence[id] && globalStudentPresence[id].size > 1) recorrentes++; });
         let esperados = combinedInscricoes.length;
+        filesToProcess.filter(f => f.type === 'masterclass').forEach(f => { esperados += getMasterclassMetrics(f).insc; });
         let engajamento = esperados > 0 ? ((totalRealizados/esperados)*100).toFixed(1) + "%" : "0%";
 
         filesToProcess.forEach(fObj => {
@@ -1056,9 +1082,10 @@
                 cFacil += countLinks(certF);
                 cMent  += countLinks(certM);
             }
+            else if (pType === 'masterclass') certsMasterclass += getMasterclassMetrics(fObj).certs;
             else certsHandsOn += alunosLinked.size;
         });
-        let totalCerts = certsCyberthon + certsHandsOn + certsMulheres + certsSummer + cFacil + cMent;
+        let totalCerts = certsCyberthon + certsHandsOn + certsMulheres + certsSummer + certsMasterclass + cFacil + cMent;
 
         if (currentView === 'ativos') {
             let grid = document.getElementById('kpi-grid');
@@ -1070,11 +1097,12 @@
                     <div style="color:var(--orange);">${totalCerts}</div>
                     <div class="cert-breakdown">
                         ${(certsCyberthon + certsHandsOn + certsMulheres + certsSummer) > 0 ? `<span>👨‍🎓 Alunos <b>${certsCyberthon + certsHandsOn + certsMulheres + certsSummer}</b></span>` : ''}
+                        ${certsMasterclass > 0 ? `<span>🎓 Masterclass <b>${certsMasterclass}</b></span>` : ''}
                         ${cFacil > 0 ? `<span>🎓 Facilitadores <b>${cFacil}</b></span>` : ''}
                         ${cMent  > 0 ? `<span>🧑‍💼 Mentores <b>${cMent}</b></span>`       : ''}
                     </div>
                 </div>`;
-            renderEngagement(filesToProcess, totalRealizados, recorrentes, certsCyberthon, certsHandsOn, certsMulheres, certsSummer, cFacil, cMent);
+            renderEngagement(filesToProcess, totalRealizados, recorrentes, certsCyberthon, certsHandsOn, certsMulheres, certsSummer, cFacil, cMent, certsMasterclass);
         }
 
         let isCyber = pTypeGlobal === 'cyberthon';
@@ -1083,34 +1111,45 @@
         document.getElementById('card-cargos').classList.toggle('hidden', isCyber);
 
         // ── Visibilidade dinâmica das abas ──────────────────────────────────
-        const hasPresenca = combinedPresenca.length > 0 || pTypeGlobal === 'hands-on' || pTypeGlobal === 'summer-job';
-        const isSummer    = pTypeGlobal === 'summer-job';
+        const isMasterclass = pTypeGlobal === 'masterclass';
+        const hasPresenca = combinedPresenca.length > 0 || pTypeGlobal === 'hands-on' || pTypeGlobal === 'summer-job' || isMasterclass;
+        const isSummer    = pTypeGlobal === 'summer-job' || isMasterclass;
         document.getElementById('tab-geral').classList.toggle('hidden', isSummer);
         const hasReacao   = combinedReacao.length > 0;
         const hasAbandono = (combinedPresenca.length > 0 || pTypeGlobal === 'summer-job') && combinedInscricoes.length > 0;
+        const hasMcPerm   = isMasterclass && filesToProcess.some(f => f.type === 'masterclass' && getMasterclassMetrics(f).permRows.length > 0);
+        const hasMcCert   = isMasterclass && filesToProcess.some(f => f.type === 'masterclass' && getMasterclassMetrics(f).certRows.length > 0);
 
         document.getElementById('kpi-grid').classList.toggle('hidden', currentView !== 'ativos');
         document.getElementById('tab-ativos')  .classList.toggle('hidden', !hasPresenca);
         document.getElementById('tab-abandon') .classList.toggle('hidden', !hasAbandono);
         document.getElementById('tab-eval')    .classList.toggle('hidden', !hasReacao);
+        document.getElementById('tab-mc-perm') .classList.toggle('hidden', !hasMcPerm);
+        document.getElementById('tab-mc-cert') .classList.toggle('hidden', !hasMcCert);
 
-        // Se a view atual ficou escondida, voltar para geral
+        // Se a view atual ficou escondida, voltar para ativos (masterclass) ou geral
         if ((currentView === 'ativos'    && !hasPresenca)  ||
             (currentView === 'abandono'  && !hasAbandono)  ||
-            (currentView === 'avaliacao' && !hasReacao)) {
-            currentView = 'geral';
+            (currentView === 'avaliacao' && !hasReacao)    ||
+            (currentView === 'mc-perm'   && !hasMcPerm)    ||
+            (currentView === 'mc-cert'   && !hasMcCert)) {
+            currentView = isMasterclass ? 'ativos' : 'geral';
             document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-            document.getElementById('tab-geral').classList.add('active');
-            document.getElementById('engagement-content').classList.add('hidden');
-            document.getElementById('dashboard-content').classList.remove('hidden');
+            document.getElementById(isMasterclass ? 'tab-ativos' : 'tab-geral').classList.add('active');
+            document.getElementById('engagement-content').classList.toggle('hidden', !isMasterclass);
+            document.getElementById('dashboard-content').classList.toggle('hidden', isMasterclass);
+            document.getElementById('mc-perm-content').classList.add('hidden');
+            document.getElementById('mc-cert-content').classList.add('hidden');
         }
         // ────────────────────────────────────────────────────────────────────
 
         if (currentView === 'abandono')  renderAbandonment(combinedInscricoes, combinedPresenca, totalAtivosCPFs, totalAtivosEmails, totalAtivosNomes, totalAtivosBase);
         else if (currentView === 'avaliacao') renderEvaluation(combinedReacao, filesToProcess);
         else if (currentView === 'banca' && pTypeGlobal === 'cyberthon') renderBanca(combinedBanca, filesToProcess);
-        else if (currentView === 'ativos') renderEngagement(filesToProcess, totalRealizados, recorrentes, certsCyberthon, certsHandsOn, certsMulheres, certsSummer, cFacil, cMent);
-        else if (currentView === 'geral') renderDemographics(filteredData);
+        else if (currentView === 'ativos') renderEngagement(filesToProcess, totalRealizados, recorrentes, certsCyberthon, certsHandsOn, certsMulheres, certsSummer, cFacil, cMent, certsMasterclass);
+        else if (currentView === 'mc-perm') renderMasterclassPermanencia(filesToProcess);
+        else if (currentView === 'mc-cert') renderMasterclassCertificacao(filesToProcess);
+        else if (currentView === 'geral' && !isSummer) renderDemographics(filteredData);
     }
 
     // ── Nome de exibição por tipo de arquivo ────────────────────────────────
@@ -1155,13 +1194,125 @@
     }
     // ────────────────────────────────────────────────────────────────────────
 
-    function renderEngagement(filesToProcess, totalRealizados, recorrentes, certsCyberthon, certsHandsOn, certsMulheres, certsSummer, cFacil, cMent) {
-        // Funil por edição
-        const labels = [], inscritos = [], participacoes = [], certificados = [], bgColors = [];
-        filesToProcess.forEach(fObj => {
-            const title = getDisplayName(fObj) || fObj.name;
+    function getMasterclassMetrics(fObj) {
+        const sheet = Object.values(fObj.data)[0] || [];
+        let insc = 0, partic = 0, certs = 0, perm0_50 = 0, perm50_75 = 0, perm75plus = 0;
+        const permRows = [];  // [{ faixa, participantes, pct }]
+        const certRows = [];  // [{ metrica, quantidade, pct, base }]
+        sheet.forEach(row => {
+            const vals = Object.values(row);
+            const first = normalize(String(vals[0] || ''));
+            const num = parseFloat(String(vals[1] || '').replace(',','.').replace('%',''));
+            // Âncora ^ para não casar linhas da seção "Certificação" (ex: "Certificados / Inscrições únicas")
+            if (/^inscri/.test(first) && !isNaN(num) && !insc) insc = num;
+            else if (/^(?:pessoas|zoom|acessaram)/.test(first) && !isNaN(num) && !partic) partic = num;
+            else if (/^certificados emitidos$/.test(first) && !isNaN(num) && num > 0 && !certs) certs = num;
+            else if (/^0.*50|^0%.*50%/.test(first) && !isNaN(num)) { perm0_50 = num; permRows.push({ faixa: String(vals[0]||'').trim(), participantes: num, pct: String(vals[2]||'').trim() }); }
+            else if (/^51.*75|^50.*75/.test(first) && !isNaN(num)) { perm50_75 = num; permRows.push({ faixa: String(vals[0]||'').trim(), participantes: num, pct: String(vals[2]||'').trim() }); }
+            else if (/^mais.*75|^75.*tempo/.test(first) && !isNaN(num)) { perm75plus = num; permRows.push({ faixa: String(vals[0]||'').trim(), participantes: num, pct: String(vals[2]||'').trim() }); }
+            else if (/^total.*acess/.test(first) && !isNaN(num)) { permRows.push({ faixa: String(vals[0]||'').trim(), participantes: num, pct: String(vals[2]||'').trim() }); }
+            else if (/^certificados emitidos\s*\//.test(String(vals[0]||'').toLowerCase()) && !isNaN(num)) {
+                certRows.push({ metrica: String(vals[0]||'').trim(), quantidade: num, pct: String(vals[2]||'').trim(), base: String(vals[3]||'').trim() });
+            }
+        });
+        // fallback: primeira linha com 'certificad' e valor numérico (caso o label varie)
+        if (!certs) sheet.forEach(row => {
+            const first = normalize(String(Object.values(row)[0] || ''));
+            const num = parseFloat(String(Object.values(row)[1] || '').replace(',','.'));
+            if (/^certificad/.test(first) && !isNaN(num) && num > 0 && !certs) certs = num;
+        });
+        return { insc, partic, certs, perm0_50, perm50_75, perm75plus, permRows, certRows };
+    }
+
+    function renderMasterclassPermanencia(filesToProcess) {
+        const mcFiles = filesToProcess.filter(f => f.type === 'masterclass');
+        const el = document.getElementById('mc-perm-body');
+        if (!el) return;
+        if (!mcFiles.length) { el.innerHTML = '<p style="color:var(--text-muted);padding:20px;">Nenhum dado de Masterclass carregado.</p>'; return; }
+
+        let html = '';
+        mcFiles.forEach(fObj => {
+            const mc = getMasterclassMetrics(fObj);
+            const nome = getDisplayName(fObj) || fObj.name;
+            if (mcFiles.length > 1) html += `<h3 style="margin:20px 0 10px;color:var(--blue-dark);">${nome}</h3>`;
+            if (!mc.permRows.length) { html += '<p style="color:var(--text-muted);padding:8px 0;">Dados de permanência não encontrados.</p>'; return; }
+            html += `<div class="chart-card full-width" style="padding:20px;">
+                <h3>Permanência na Masterclass</h3>
+                <table class="embrapii-table" style="margin-top:12px;">
+                    <thead><tr>
+                        <th>Faixa de Permanência</th>
+                        <th style="text-align:center;">Participantes</th>
+                        <th style="text-align:center;">% dos Acessos</th>
+                    </tr></thead>
+                    <tbody>`;
+            mc.permRows.forEach(r => {
+                const isTotal = /total/i.test(r.faixa);
+                const style = isTotal ? 'font-weight:700;background:rgba(55,91,149,0.06);' : '';
+                html += `<tr style="${style}">
+                    <td>${r.faixa}</td>
+                    <td style="text-align:center;">${r.participantes}</td>
+                    <td style="text-align:center;">${r.pct}</td>
+                </tr>`;
+            });
+            html += `</tbody></table></div>`;
+        });
+        el.innerHTML = html;
+    }
+
+    function renderMasterclassCertificacao(filesToProcess) {
+        const mcFiles = filesToProcess.filter(f => f.type === 'masterclass');
+        const el = document.getElementById('mc-cert-body');
+        if (!el) return;
+        if (!mcFiles.length) { el.innerHTML = '<p style="color:var(--text-muted);padding:20px;">Nenhum dado de Masterclass carregado.</p>'; return; }
+
+        let html = '';
+        mcFiles.forEach(fObj => {
+            const mc = getMasterclassMetrics(fObj);
+            const nome = getDisplayName(fObj) || fObj.name;
+            if (mcFiles.length > 1) html += `<h3 style="margin:20px 0 10px;color:var(--blue-dark);">${nome}</h3>`;
+            if (!mc.certRows.length) { html += '<p style="color:var(--text-muted);padding:8px 0;">Dados de certificação não encontrados.</p>'; return; }
+            html += `<div class="chart-card full-width" style="padding:20px;">
+                <h3>Certificação</h3>
+                <table class="embrapii-table" style="margin-top:12px;">
+                    <thead><tr>
+                        <th>Métrica</th>
+                        <th style="text-align:center;">Quantidade</th>
+                        <th style="text-align:center;">% sobre Base</th>
+                        <th>Base de Referência</th>
+                    </tr></thead>
+                    <tbody>`;
+            mc.certRows.forEach(r => {
+                html += `<tr>
+                    <td>${r.metrica}</td>
+                    <td style="text-align:center;">${r.quantidade}</td>
+                    <td style="text-align:center;">${r.pct}</td>
+                    <td>${r.base}</td>
+                </tr>`;
+            });
+            html += `</tbody></table></div>`;
+        });
+        el.innerHTML = html;
+    }
+
+    function renderEngagement(filesToProcess, totalRealizados, recorrentes, certsCyberthon, certsHandsOn, certsMulheres, certsSummer, cFacil, cMent, certsMasterclass = 0) {
+        // Funil por edição — mais recente à esquerda
+        const skFn = f => (parseInt(f.year)||0)*10000 + (parseInt(f.month)||0)*100 + (parseInt(f.day)||0);
+        const sortedFiles = [...filesToProcess].sort((a, b) => skFn(b) - skFn(a));
+        const labels = [], fullLabels = [], inscritos = [], participacoes = [], certificados = [], bgColors = [];
+        sortedFiles.forEach(fObj => {
+            let title = getDisplayName(fObj) || fObj.name;
+            const fullTitle = title;
+            if (fObj.type === 'hands-on') {
+                const words = title.trim().split(/\s+/);
+                const short = words.slice(0, 3).join(' ') + (words.length > 3 ? '…' : '');
+                const datePart = (fObj.month !== 'Desconhecido' && fObj.year !== 'Desconhecido')
+                    ? ' — ' + (monthNames[fObj.month] || fObj.month) + '/' + fObj.year
+                    : '';
+                title = short + datePart;
+            }
             labels.push(title);
-            bgColors.push(fObj.type === 'cyberthon' ? '#375B95' : fObj.type === 'mulheres' ? '#F37623' : fObj.type === 'summer-job' ? '#5A83C4' : '#D25600');
+            fullLabels.push(fullTitle);
+            bgColors.push(fObj.type === 'cyberthon' ? '#375B95' : fObj.type === 'mulheres' ? '#F37623' : fObj.type === 'summer-job' ? '#5A83C4' : fObj.type === 'masterclass' ? '#7B5EA7' : '#D25600');
 
             // ── Mulheres: tudo vem da aba de participantes/certificados ────────
             if (fObj.type === 'mulheres') {
@@ -1211,7 +1362,12 @@
                 return certSet.size;
             };
 
-            if (fObj.type === 'summer-job') {
+            if (fObj.type === 'masterclass') {
+                const mc = getMasterclassMetrics(fObj);
+                inscritos[inscritos.length - 1] = mc.insc;
+                ativos = mc.partic;
+                certs = mc.certs;
+            } else if (fObj.type === 'summer-job') {
                 // Inscrições: indicados; Participações: quem tem freq > 0; Certificados: links
                 const indicSheet = getSheetData(fObj.data, [/indicad/]) || [];
                 inscritos[inscritos.length - 1] = indicSheet.length;
@@ -1261,6 +1417,12 @@
             const gridColor = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)';
             const textColor = isDark ? '#E8E8E8' : '#232323';
             const barThickness = Math.max(18, Math.min(40, Math.floor(320 / labels.length)));
+            // Scroll horizontal: largura mínima de 75px por grupo de barras
+            const funnelInner = document.getElementById('funnel-scroll-inner');
+            if (funnelInner) {
+                const outerW = funnelInner.parentElement.clientWidth || 600;
+                funnelInner.style.width = Math.max(outerW, labels.length * 75) + 'px';
+            }
             let funnelPinned = null;
             charts['c-engage-funnel'] = new Chart(document.getElementById('c-engage-funnel'), {
                 type: 'bar',
@@ -1305,6 +1467,37 @@
                     }
                 }]
             });
+
+            // Tooltip ao passar sobre labels truncadas no eixo X
+            (function() {
+                const canvas = document.getElementById('c-engage-funnel');
+                const ch = charts['c-engage-funnel'];
+                let tip = document.getElementById('_funnelLabelTip');
+                if (!tip) {
+                    tip = document.createElement('div');
+                    tip.id = '_funnelLabelTip';
+                    tip.style.cssText = 'position:fixed;background:rgba(30,30,30,.92);color:#fff;padding:5px 10px;border-radius:6px;font-size:12px;pointer-events:none;display:none;z-index:9999;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,.3)';
+                    document.body.appendChild(tip);
+                }
+                canvas.addEventListener('mousemove', function(e) {
+                    const rect = canvas.getBoundingClientRect();
+                    const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+                    const xScale = ch.scales.x;
+                    if (!xScale || my < ch.chartArea.bottom) { tip.style.display = 'none'; return; }
+                    const step = xScale.width / Math.max(labels.length, 1);
+                    let found = -1;
+                    for (let i = 0; i < labels.length; i++) {
+                        if (Math.abs(mx - xScale.getPixelForValue(i)) < step / 1.5) { found = i; break; }
+                    }
+                    if (found >= 0 && fullLabels[found] !== labels[found]) {
+                        tip.textContent = fullLabels[found];
+                        tip.style.left = (e.clientX + 12) + 'px';
+                        tip.style.top  = (e.clientY - 34) + 'px';
+                        tip.style.display = 'block';
+                    } else { tip.style.display = 'none'; }
+                });
+                canvas.addEventListener('mouseleave', () => tip.style.display = 'none');
+            })();
         }
 
         // Separa facilitadores/mentores por programa (cyberthon vs summer-job)
@@ -1317,10 +1510,11 @@
         });
 
         const certsLabels = [], certsData = [], certsColors = [];
-        if (certsCyberthon > 0)  { certsLabels.push('Alunos — Cyberthon');             certsData.push(certsCyberthon);  certsColors.push('#375B95'); }
-        if (certsHandsOn > 0)    { certsLabels.push('Alunos — Hands On');              certsData.push(certsHandsOn);   certsColors.push('#D25600'); }
-        if (certsMulheres > 0)   { certsLabels.push('Mulheres em Ciber');     certsData.push(certsMulheres);  certsColors.push('#F37623'); }
-        if (certsSummer > 0)     { certsLabels.push('Alunos — Summer Job');            certsData.push(certsSummer);    certsColors.push('#5A83C4'); }
+        if (certsCyberthon > 0)    { certsLabels.push('Alunos — Cyberthon');    certsData.push(certsCyberthon);    certsColors.push('#375B95'); }
+        if (certsHandsOn > 0)      { certsLabels.push('Alunos — Hands On');    certsData.push(certsHandsOn);      certsColors.push('#D25600'); }
+        if (certsMulheres > 0)     { certsLabels.push('Mulheres em Ciber');     certsData.push(certsMulheres);     certsColors.push('#F37623'); }
+        if (certsSummer > 0)       { certsLabels.push('Alunos — Summer Job');   certsData.push(certsSummer);       certsColors.push('#5A83C4'); }
+        if (certsMasterclass > 0)  { certsLabels.push('Masterclass');           certsData.push(certsMasterclass);  certsColors.push('#7B5EA7'); }
         if (cFacilSummer > 0)    { certsLabels.push('Facilitadores — Summer Job');     certsData.push(cFacilSummer);   certsColors.push('#8AAED6'); }
         if (cMentSummer > 0)     { certsLabels.push('Mentores — Summer Job');          certsData.push(cMentSummer);    certsColors.push('#375B95'); }
         if (cFacilCyber > 0)     { certsLabels.push('Facilitadores — Cyberthon');      certsData.push(cFacilCyber);    certsColors.push('#8AAED6'); }
@@ -1831,6 +2025,8 @@
                     }
                 });
                 alunosCerts = linked.size;
+            } else if (fObj.type === 'masterclass') {
+                alunosCerts = getMasterclassMetrics(fObj).certs;
             } else {
                 const linked = new Set();
                 pres.forEach(r => {
@@ -1851,19 +2047,21 @@
             const ment  = countLinks(certM);
             const totalFile = alunosCerts + facil + ment;
 
-            const categoria = fObj.type === 'cyberthon'  ? 'Curta Duração'
-                            : fObj.type === 'hands-on'   ? 'Curta Duração'
-                            : fObj.type === 'mulheres'   ? 'Curta Duração'
-                            : fObj.type === 'summer-job' ? 'Curta Duração'
+            const categoria = fObj.type === 'cyberthon'    ? 'Curta Duração'
+                            : fObj.type === 'hands-on'     ? 'Curta Duração'
+                            : fObj.type === 'mulheres'     ? 'Curta Duração'
+                            : fObj.type === 'summer-job'   ? 'Curta Duração'
+                            : fObj.type === 'masterclass'  ? 'Curta Duração'
                             : 'Outros';
 
             cursos.push({
                 label:       getDisplayName(fObj) || fObj.name,
                 tipo:        fObj.type,
-                tipoLabel:   fObj.type === 'cyberthon'  ? 'Cyberthon'
-                           : fObj.type === 'hands-on'   ? 'Hands On'
-                           : fObj.type === 'mulheres'   ? 'Mulheres em Ciber'
-                           : fObj.type === 'summer-job' ? 'Summer Job'
+                tipoLabel:   fObj.type === 'cyberthon'   ? 'Cyberthon'
+                           : fObj.type === 'hands-on'    ? 'Hands On'
+                           : fObj.type === 'mulheres'    ? 'Mulheres em Ciber'
+                           : fObj.type === 'summer-job'  ? 'Summer Job'
+                           : fObj.type === 'masterclass' ? 'Masterclass'
                            : 'Outros',
                 categoria,
                 ano:         fObj.year   || '—',
@@ -1891,7 +2089,7 @@
             <div class="kpi-card">
                 <span>CURTA DURAÇÃO</span>
                 <div style="color:var(--blue-dark);">${totalCurtaDuracao}</div>
-                <div style="font-size:0.7rem;color:var(--text-muted);margin-top:4px;">Cyberthon · Hands On · Mulheres em Ciber · Summer Job</div>
+                <div style="font-size:0.7rem;color:var(--text-muted);margin-top:4px;">Cyberthon · Hands On · Mulheres em Ciber · Summer Job · Masterclass</div>
             </div>
             <div class="kpi-card">
                 <span>EM FORMAÇÃO</span>
@@ -1978,7 +2176,7 @@
             ? (monthNamesShort[c.mes] || c.mes) + '/' + c.ano : c.ano;
 
         // Agrupa por tipo para linhas de subtotal
-        const tiposOrder = ['Cyberthon', 'Hands On', 'Mulheres em Ciber', 'Summer Job'];
+        const tiposOrder = ['Cyberthon', 'Hands On', 'Mulheres em Ciber', 'Summer Job', 'Masterclass'];
         const grupos = {};
         cursos.forEach(c => {
             const t = c.tipoLabel;
