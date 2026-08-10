@@ -1918,13 +1918,22 @@
         if (npsKey) {
             let npsValues = data.map(r => parseFloat(r[npsKey])).filter(n => !isNaN(n) && n >= 0 && n <= 10);
             if (npsValues.length > 0) {
-                const avg = (npsValues.reduce((a,b) => a+b, 0) / npsValues.length).toFixed(1);
-                document.getElementById('v-nps').innerText = avg;
+                const total      = npsValues.length;
+                const promoters  = npsValues.filter(n => n >= 9).length;
+                const detractors = npsValues.filter(n => n <= 6).length;
+                const nps        = ((promoters - detractors) / total * 100).toFixed(1);
                 const boxNps = document.getElementById('box-nps');
+                document.getElementById('v-nps').innerText = nps;
                 boxNps.querySelector('span').textContent = 'NPS';
-                // remove sub se existir
                 const oldSub = boxNps.querySelector('.nps-sub');
                 if (oldSub) oldSub.remove();
+                // legenda compacta: promotores / passivos / detratores
+                const passives = total - promoters - detractors;
+                const sub = document.createElement('div');
+                sub.className = 'nps-sub';
+                sub.style.cssText = 'font-size:0.68rem;color:var(--text-muted);margin-top:4px;line-height:1.5;';
+                sub.innerHTML = `😊 ${promoters} prom. &nbsp;😐 ${passives} pass. &nbsp;😞 ${detractors} detr.<br><span style="opacity:.7;">${total} respostas</span>`;
+                boxNps.appendChild(sub);
                 boxNps.classList.remove('hidden');
             } else document.getElementById('box-nps').classList.add('hidden');
         } else document.getElementById('box-nps').classList.add('hidden');
