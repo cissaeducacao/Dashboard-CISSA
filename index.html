@@ -99,6 +99,11 @@
         .embrapii-badge.outros { background: rgba(0,0,0,0.06);    color: var(--text-muted); }
         .embrapii-export { background: none; border: 1px solid var(--border); color: var(--text-muted); padding: 5px 12px; border-radius: 6px; font-size: 0.78rem; cursor: pointer; float: right; font-family: 'DM Sans', sans-serif; transition: 0.2s; }
         .embrapii-export:hover { border-color: var(--blue-dark); color: var(--blue-dark); }
+        .cert-select { width:100%; padding:10px 14px; border:1px solid var(--border); border-radius:8px; background:var(--card); color:var(--text-main); font-family:'DM Sans',sans-serif; font-size:0.95rem; cursor:pointer; }
+        .cert-link-btn { display:inline-block; padding:3px 10px; border-radius:20px; font-size:0.75rem; font-weight:700; background:rgba(55,91,149,0.12); color:var(--blue-dark); text-decoration:none; white-space:nowrap; }
+        .cert-link-btn:hover { background:var(--blue-dark); color:#fff; }
+        .cert-table-wrap { overflow-x:auto; margin-top:16px; }
+        #cert-table-body tr:nth-child(even) td { background:rgba(0,0,0,0.02); }
         .full-width { grid-column: span 2; width: 100%; }
         .canvas-wrapper { flex: 1; position: relative; min-height: 0; }
         .comment-list { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 20px; max-height: 380px; overflow-y: auto; transition: 0.3s; box-shadow: inset 0 2px 4px rgba(0,0,0,0.02); }
@@ -150,6 +155,7 @@
     <div class="sidebar-indicator">≡</div>
     <div class="sidebar-inner">
         <h2>Menu Principal</h2>
+        <button class="project-btn general" id="btn-page-certificados" onclick="switchPage('certificados')" style="background:var(--blue-dark);color:#fff;border-color:var(--blue-dark);font-weight:700;">🎓 Certificados</button>
         <button class="project-btn general active" id="btn-page-dash" onclick="switchPage('dash')">Dashboard Interativo</button>
         <button class="project-btn general" id="btn-page-portfolio" onclick="switchPage('portfolio')">Portfólio Educacional</button>
         <button class="project-btn general" id="btn-page-embrapii" onclick="switchPage('embrapii')">Acompanhamento Embrapii</button>
@@ -396,6 +402,19 @@
             </div>
         </div>
     </div>
+    <div id="page-certificados" class="page-section hidden">
+        <div class="header-title">
+            <h1>Certificados Emitidos</h1>
+        </div>
+        <div style="max-width:320px;margin-bottom:24px;">
+            <select class="cert-select" id="cert-file-select" onchange="switchCertFile(this.value)">
+                <option value="">— Selecione um projeto —</option>
+            </select>
+        </div>
+        <div id="cert-content">
+            <p style="color:var(--text-muted);font-size:0.95rem;">Selecione um projeto acima para visualizar os certificados.</p>
+        </div>
+    </div>
 </div>
 
 <script>
@@ -428,10 +447,11 @@
     function switchPage(pageId) {
         document.querySelectorAll('.page-section').forEach(p => p.classList.add('hidden'));
         document.getElementById('page-' + pageId).classList.remove('hidden');
-        document.querySelectorAll('#btn-page-dash, #btn-page-portfolio, #btn-page-embrapii').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('#btn-page-dash, #btn-page-portfolio, #btn-page-embrapii, #btn-page-certificados').forEach(b => b.classList.remove('active'));
         document.getElementById('btn-page-' + pageId).classList.add('active');
-        if (pageId === 'dash')     setTimeout(() => { Object.values(charts).forEach(c => c.resize()); }, 100);
-        if (pageId === 'embrapii') renderEmbrapii(uploadedFiles);
+        if (pageId === 'dash')          setTimeout(() => { Object.values(charts).forEach(c => c.resize()); }, 100);
+        if (pageId === 'embrapii')      renderEmbrapii(uploadedFiles);
+        if (pageId === 'certificados')  renderCertificadosPage();
     }
 
     function toggleAccordion(id, btnElement) {
@@ -737,7 +757,7 @@
         html += buildMenu(masterFiles,  'masterclass', 'Masterclass');
 
         container.innerHTML = html;
-        document.querySelectorAll('.project-btn.general').forEach(b => { if(!['btn-page-dash','btn-page-portfolio','btn-page-embrapii'].includes(b.id)) b.classList.remove('active'); });
+        document.querySelectorAll('.project-btn.general').forEach(b => { if(!['btn-page-dash','btn-page-portfolio','btn-page-embrapii','btn-page-certificados'].includes(b.id)) b.classList.remove('active'); });
         document.querySelectorAll('.sub-btn').forEach(b => b.classList.remove('active'));
         let activeBtn = document.getElementById('btn-' + currentScope);
         if (activeBtn) {
@@ -759,7 +779,7 @@
     function switchScope(scope) {
         switchPage('dash'); 
         currentScope = scope;
-        document.querySelectorAll('.project-btn.general').forEach(b => { if(!['btn-page-dash','btn-page-portfolio','btn-page-embrapii'].includes(b.id)) b.classList.remove('active'); });
+        document.querySelectorAll('.project-btn.general').forEach(b => { if(!['btn-page-dash','btn-page-portfolio','btn-page-embrapii','btn-page-certificados'].includes(b.id)) b.classList.remove('active'); });
         document.querySelectorAll('.sub-btn').forEach(b => b.classList.remove('active'));
         let activeBtn = document.getElementById('btn-' + scope);
         if (activeBtn) activeBtn.classList.add('active');
@@ -2001,6 +2021,208 @@
         { nome: 'Especialização OpenRan',         categoria: 'Especialização', inicio: '2024' },
         { nome: 'EAD Cyber para Executivos',      categoria: 'Curta Duração',  inicio: '2024' }
     ];
+
+    // ── Certificados ────────────────────────────────────────────────────────────
+
+    function getCertLinkFromRow(row) {
+        if (row.__certLink__) return row.__certLink__;
+        for (const k of Object.keys(row)) {
+            const val = String(row[k] || '').trim();
+            if (val.includes('https://drive.google.com/file/d/')) return val;
+            const nk = normalize(k);
+            if ((nk.includes('link') || nk.includes('url')) && /^https?:\/\//i.test(val)) return val;
+        }
+        return null;
+    }
+
+    function getPersonFromRow(row) {
+        let nome = '', cpf = '', email = '';
+        Object.keys(row).forEach(k => {
+            const nk = normalize(k);
+            const val = String(row[k] || '').trim();
+            if (!val || val === 'undefined' || val === 'null') return;
+            if (nk.includes('cpf')) { if (!cpf) cpf = val; }
+            else if (nk.includes('mail')) { if (!email) email = val; }
+            else if (nk.includes('nome') && !nk.includes('mae') && !nk.includes('pai') && !nk.includes('responsavel') && !nk.includes('certif')) {
+                if (!nome) nome = val;
+            }
+        });
+        if (!nome) {
+            const firstKey = Object.keys(row).find(k => !k.startsWith('__') && !normalize(k).includes('cpf') && !normalize(k).includes('mail'));
+            if (firstKey) nome = String(row[firstKey] || '').trim();
+        }
+        return { nome, cpf, email };
+    }
+
+    function getCertRows(fObj) {
+        const data = fObj.data;
+        const sheetNames = Object.keys(data);
+        const groups = { Participante: [], Facilitador: [], Mentor: [] };
+        const seen = {};
+        Object.keys(groups).forEach(g => seen[g] = new Set());
+
+        const addRow = (tipo, row) => {
+            const link = getCertLinkFromRow(row);
+            const info = getPersonFromRow(row);
+            const id = (info.cpf || info.email || info.nome || '').toLowerCase().replace(/\s/g,'');
+            if (!info.nome && !info.cpf && !link) return;
+            if (id && seen[tipo].has(id)) return;
+            if (id) seen[tipo].add(id);
+            groups[tipo].push({ ...info, link, tipo });
+        };
+
+        if (fObj.type === 'mulheres') {
+            const key = sheetNames.find(k => /participante.*certif|certif.*participante|participante|certifi/i.test(normalize(k)));
+            if (key) (data[key] || []).forEach(row => addRow('Participante', row));
+            return groups;
+        }
+
+        const presKey  = sheetNames.find(k => /presen/i.test(normalize(k)));
+        const presData = presKey ? data[presKey] : [];
+        const inscKey  = fObj.type === 'summer-job'
+            ? sheetNames.find(k => /indicad/i.test(normalize(k)))
+            : sheetNames.find(k => /estudantes|alunos|inscri|respostas|form/i.test(normalize(k)));
+        const inscData = inscKey ? data[inscKey] : [];
+
+        [...presData, ...inscData].forEach(row => {
+            if (rowHasCertLink(row)) addRow('Participante', row);
+        });
+
+        const facKey = sheetNames.find(k => /certificados facilitadores|certificados fac/i.test(normalize(k)));
+        if (facKey) (data[facKey] || []).forEach(row => { if (rowHasCertLink(row)) addRow('Facilitador', row); });
+
+        const menKey = sheetNames.find(k => /certificados mentores|certificados men/i.test(normalize(k)));
+        if (menKey) (data[menKey] || []).forEach(row => { if (rowHasCertLink(row)) addRow('Mentor', row); });
+
+        return groups;
+    }
+
+    function fmtEventDate(fObj) {
+        const d = fObj.day   !== 'Desconhecido' ? String(fObj.day).padStart(2,'0') : '';
+        const m = fObj.month !== 'Desconhecido' ? fObj.month : '';
+        const y = fObj.year  !== 'Desconhecido' ? fObj.year  : '';
+        if (d && m && y) return `${d}/${m}/${y}`;
+        if (m && y) return `${m}/${y}`;
+        return y || '—';
+    }
+
+    function renderCertificadosPage() {
+        const sel = document.getElementById('cert-file-select');
+        if (!sel) return;
+        const skFn = f => (parseInt(f.year)||0)*10000 + (parseInt(f.month)||0)*100 + (parseInt(f.day)||0);
+        const sorted = [...uploadedFiles]
+            .filter(f => f.type !== 'masterclass')
+            .sort((a,b) => skFn(b) - skFn(a));
+
+        const prev = sel.value;
+        sel.innerHTML = '<option value="">— Selecione um projeto —</option>';
+        sorted.forEach(f => {
+            const opt = document.createElement('option');
+            opt.value = f.id;
+            opt.textContent = getDisplayName(f) || f.name;
+            sel.appendChild(opt);
+        });
+        if (prev && sorted.find(f => f.id === prev)) {
+            sel.value = prev;
+            switchCertFile(prev);
+        } else {
+            document.getElementById('cert-content').innerHTML =
+                '<p style="color:var(--text-muted);font-size:0.95rem;">Selecione um projeto acima para visualizar os certificados.</p>';
+        }
+    }
+
+    function buildCertTable(rows, dataConclusao) {
+        if (!rows.length) return '';
+        const rowsHtml = rows.map((r, i) => {
+            const linkHtml = r.link
+                ? `<a href="${r.link}" target="_blank" class="cert-link-btn">Abrir</a>`
+                : '<span style="color:var(--text-muted);">—</span>';
+            return `<tr>
+                <td style="text-align:center;color:var(--text-muted);font-size:0.8rem;">${i+1}</td>
+                <td>${r.nome || '—'}</td>
+                <td>${r.cpf  || '—'}</td>
+                <td>${r.email || '—'}</td>
+                <td style="text-align:center;">${dataConclusao}</td>
+                <td style="text-align:center;">${linkHtml}</td>
+            </tr>`;
+        }).join('');
+        return `<div class="cert-table-wrap">
+            <table class="embrapii-table" style="margin-top:8px;">
+                <thead><tr>
+                    <th style="text-align:center;width:48px;">#</th>
+                    <th>Nome Completo</th>
+                    <th>CPF</th>
+                    <th>Email</th>
+                    <th style="text-align:center;">Data de Conclusão</th>
+                    <th style="text-align:center;">Certificado</th>
+                </tr></thead>
+                <tbody>${rowsHtml}</tbody>
+            </table>
+        </div>`;
+    }
+
+    function switchCertFile(fileId) {
+        const el = document.getElementById('cert-content');
+        if (!fileId) { el.innerHTML = '<p style="color:var(--text-muted);font-size:0.95rem;">Selecione um projeto acima para visualizar os certificados.</p>'; return; }
+        const fObj = uploadedFiles.find(f => f.id === fileId);
+        if (!fObj) return;
+
+        const groups = getCertRows(fObj);
+        const dataConclusao = fmtEventDate(fObj);
+        const total = Object.values(groups).reduce((s, a) => s + a.length, 0);
+
+        if (!total) {
+            el.innerHTML = `<div class="chart-card full-width" style="padding:20px;">
+                <p style="color:var(--text-muted);">Nenhum certificado com link encontrado neste projeto.</p>
+            </div>`;
+            return;
+        }
+
+        const LABELS = { Participante: 'Participantes', Facilitador: 'Facilitadores', Mentor: 'Mentores' };
+        const COLORS = { Participante: 'var(--blue-dark)', Facilitador: '#2d8a4e', Mentor: '#b55e00' };
+
+        const sectionsHtml = Object.entries(LABELS).map(([tipo, label]) => {
+            const rows = groups[tipo] || [];
+            if (!rows.length) return '';
+            return `<div style="margin-top:28px;">
+                <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px;">
+                    <span style="font-weight:700;font-size:1rem;color:${COLORS[tipo]};">${label}</span>
+                    <span style="font-size:0.82rem;color:var(--text-muted);background:var(--border);border-radius:20px;padding:1px 10px;">${rows.length}</span>
+                </div>
+                ${buildCertTable(rows, dataConclusao)}
+            </div>`;
+        }).join('');
+
+        el.innerHTML = `
+            <div class="chart-card full-width" style="padding:20px;">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+                    <h3 style="margin:0;padding:0;border:none;">${getDisplayName(fObj) || fObj.name} — ${total} certificado(s)</h3>
+                    <button class="embrapii-export" onclick="exportCertCSV('${fileId}')">↓ Exportar CSV</button>
+                </div>
+                ${sectionsHtml}
+            </div>`;
+    }
+
+    function exportCertCSV(fileId) {
+        const fObj = uploadedFiles.find(f => f.id === fileId);
+        if (!fObj) return;
+        const groups = getCertRows(fObj);
+        const dataConclusao = fmtEventDate(fObj);
+        const header = ['#','Tipo','Nome Completo','CPF','Email','Data de Conclusão','Link Certificado'];
+        const lines = [header];
+        let seq = 1;
+        ['Participante','Facilitador','Mentor'].forEach(tipo => {
+            (groups[tipo] || []).forEach(r => {
+                lines.push([seq++, tipo, r.nome||'', r.cpf||'', r.email||'', dataConclusao, r.link||'']);
+            });
+        });
+        const csv = lines.map(l => l.map(v => '"' + String(v).replace(/"/g,'""') + '"').join(',')).join('\n');
+        const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+        const url  = URL.createObjectURL(blob);
+        const a    = document.createElement('a');
+        a.href = url; a.download = (getDisplayName(fObj) || fObj.name).replace(/[^\w\s-]/g,'') + ' — Certificados.csv';
+        a.click(); URL.revokeObjectURL(url);
+    }
 
     function renderEmbrapii(allFiles) {
         const isDark = document.body.classList.contains('dark-mode');
