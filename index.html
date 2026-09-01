@@ -406,10 +406,25 @@
         <div class="header-title">
             <h1>Certificados Emitidos</h1>
         </div>
-        <div style="max-width:320px;margin-bottom:24px;">
-            <select class="cert-select" id="cert-file-select" onchange="switchCertFile(this.value)">
-                <option value="">— Selecione um projeto —</option>
-            </select>
+        <div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;margin-bottom:24px;">
+            <div style="flex:0 0 110px;">
+                <label style="font-size:0.78rem;color:var(--text-muted);display:block;margin-bottom:4px;">Ano</label>
+                <select class="cert-select" id="cert-filter-year" onchange="renderCertificadosPage()">
+                    <option value="">Todos</option>
+                </select>
+            </div>
+            <div style="flex:0 0 130px;">
+                <label style="font-size:0.78rem;color:var(--text-muted);display:block;margin-bottom:4px;">Mês</label>
+                <select class="cert-select" id="cert-filter-month" onchange="renderCertificadosPage()">
+                    <option value="">Todos</option>
+                </select>
+            </div>
+            <div style="flex:1;min-width:200px;">
+                <label style="font-size:0.78rem;color:var(--text-muted);display:block;margin-bottom:4px;">Projeto</label>
+                <select class="cert-select" id="cert-file-select" onchange="switchCertFile(this.value)">
+                    <option value="">— Selecione um projeto —</option>
+                </select>
+            </div>
         </div>
         <div id="cert-content">
             <p style="color:var(--text-muted);font-size:0.95rem;">Selecione um projeto acima para visualizar os certificados.</p>
@@ -529,7 +544,26 @@
         });
 
         let type = 'cyberthon';
-        if (fileName.toLowerCase().includes('masterclass') || sheetNamesLower.some(s => s.includes('masterclass'))) type = 'masterclass';
+        if (fileName.toLowerCase().includes('levantamento') || fileName.toLowerCase().includes('alunos formados')) {
+            type = 'levantamento';
+            // Re-parse each sheet: find the real header row (first row that has "Nome" or "CPF")
+            workbook.SheetNames.forEach(sheetName => {
+                const ws = workbook.Sheets[sheetName];
+                const raw = XLSX.utils.sheet_to_json(ws, { header: 1 });
+                const headerIdx = raw.findIndex(r =>
+                    r.some(c => { const n = normalize(String(c||'')); return n.includes('nome') || n.includes('cpf'); })
+                );
+                if (headerIdx < 0) return;
+                const headers = raw[headerIdx];
+                sheets[sheetName] = raw.slice(headerIdx + 1)
+                    .map(r => {
+                        const obj = {};
+                        headers.forEach((h, i) => { if (h && r[i] !== undefined && r[i] !== '') obj[String(h)] = r[i]; });
+                        return obj;
+                    })
+                    .filter(r => Object.values(r).some(v => v !== '' && v !== undefined));
+            });
+        } else if (fileName.toLowerCase().includes('masterclass') || sheetNamesLower.some(s => s.includes('masterclass'))) type = 'masterclass';
         else if (sheetNamesLower.some(s => s.includes('mulher')) || fileName.toLowerCase().includes('mulher')) type = 'mulheres';
         else if (fileName.toLowerCase().includes('summer') || sheetNamesLower.some(s => s.includes('summer'))) type = 'summer-job';
         else if (sheetNamesLower.some(s => s.includes('diagn')) || fileName.toLowerCase().includes('hand')) type = 'hands-on';
@@ -632,6 +666,7 @@
                 } catch (err) { console.warn('Erro ao processar arquivo:', name, err); }
             }));
 
+            await autoLoadLocalLevantamentos();
             if (uploadedFiles.length > 0) { updateSidebar(); switchScope('all'); }
             else {
                 document.getElementById('kpi-grid').innerHTML =
@@ -671,14 +706,44 @@
         });
     };
 
+    // Auto-carrega arquivos "Levantamento" locais da pasta do dashboard
+    async function autoLoadLocalLevantamentos() {
+        try {
+            const res = await fetch('.');
+            if (!res.ok) return;
+            const html = await res.text();
+            const doc  = new DOMParser().parseFromString(html, 'text/html');
+            const links = [...doc.querySelectorAll('a[href]')]
+                .map(a => decodeURIComponent(a.getAttribute('href')))
+                .filter(h => /levantamento|alunos.formados/i.test(h) && /\.(csv|xlsx|xls)$/i.test(h));
+
+            const alreadyLoaded = new Set(uploadedFiles.map(f => f.name));
+            let loaded = 0;
+            for (const filename of links) {
+                const displayName = filename.replace(/\.[^/.]+$/, '');
+                if (alreadyLoaded.has(displayName)) continue;
+                try {
+                    const fr = await fetch(encodeURIComponent(filename).replace(/%2F/g, '/'));
+                    if (!fr.ok) continue;
+                    const buf = await fr.arrayBuffer();
+                    processFileBuffer(buf, filename);
+                    loaded++;
+                } catch(e) { console.warn('Auto-load levantamento:', filename, e); }
+            }
+            if (loaded > 0) updateSidebar();
+        } catch(e) { /* servidor não suporta listagem — ignora */ }
+    }
+
     function updateSidebar() {
         const container = document.getElementById('dynamic-editions');
         container.innerHTML = '';
-        let cyberFiles      = uploadedFiles.filter(f => f.type === 'cyberthon');
-        let handsFiles      = uploadedFiles.filter(f => f.type === 'hands-on');
-        let mulheresFiles   = uploadedFiles.filter(f => f.type === 'mulheres');
-        let summerFiles     = uploadedFiles.filter(f => f.type === 'summer-job');
-        let masterFiles     = uploadedFiles.filter(f => f.type === 'masterclass');
+        // levantamento files are cert-only — excluded from sidebar/KPI
+        const dashFiles     = uploadedFiles.filter(f => f.type !== 'levantamento');
+        let cyberFiles      = dashFiles.filter(f => f.type === 'cyberthon');
+        let handsFiles      = dashFiles.filter(f => f.type === 'hands-on');
+        let mulheresFiles   = dashFiles.filter(f => f.type === 'mulheres');
+        let summerFiles     = dashFiles.filter(f => f.type === 'summer-job');
+        let masterFiles     = dashFiles.filter(f => f.type === 'masterclass');
         let html = '';
 
         const buildMenu = (files, typeKey, title) => {
@@ -724,7 +789,7 @@
         };
 
         // ── Accordion Geral (todos os eventos) ──────────────────────────────
-        const allFiles = uploadedFiles;
+        const allFiles = dashFiles;
         if (allFiles.length > 0) {
             let geralHtml = `<button class="accordion-btn" onclick="toggleAccordion('acc-all', this)">Geral <span class="arrow">▼</span></button>
                      <div class="accordion-content" id="acc-all">
@@ -804,6 +869,9 @@
         else if (scope.startsWith('masterclass_year_'))   filesToProcess = uploadedFiles.filter(f => f.type === 'masterclass'  && f.year === scope.replace('masterclass_year_', ''));
         else if (scope.startsWith('masterclass_month_'))  filesToProcess = uploadedFiles.filter(f => f.type === 'masterclass'  && f.monthKey === scope.replace('masterclass_month_', ''));
         else filesToProcess = uploadedFiles.filter(f => f.id === scope);
+
+        // Levantamento files are cert-only — exclude from KPI/chart processing
+        filesToProcess = filesToProcess.filter(f => f.type !== 'levantamento');
 
         let uniqueTypes = [...new Set(filesToProcess.map(f => f.type))];
         pTypeGlobal = uniqueTypes.length === 1 ? uniqueTypes[0] : 'unified';
@@ -2036,13 +2104,17 @@
     }
 
     function getPersonFromRow(row) {
-        let nome = '', cpf = '', email = '';
+        let nome = '', cpf = '', email = '', codigo = '', vinculo = '', certEmitido = '', obs = '';
         Object.keys(row).forEach(k => {
             const nk = normalize(k);
             const val = String(row[k] || '').trim();
             if (!val || val === 'undefined' || val === 'null') return;
             if (nk.includes('cpf')) { if (!cpf) cpf = val; }
             else if (nk.includes('mail')) { if (!email) email = val; }
+            else if (nk.includes('observ')) { if (!obs) obs = val; }
+            else if (nk.includes('vinculo')) { if (!vinculo) vinculo = val; }
+            else if ((nk.includes('codigo') || nk.includes('code')) && nk.includes('proj')) { if (!codigo) codigo = val; }
+            else if (nk.includes('certif') && nk.includes('emitid')) { if (!certEmitido) certEmitido = val; }
             else if (nk.includes('nome') && !nk.includes('mae') && !nk.includes('pai') && !nk.includes('responsavel') && !nk.includes('certif')) {
                 if (!nome) nome = val;
             }
@@ -2051,7 +2123,7 @@
             const firstKey = Object.keys(row).find(k => !k.startsWith('__') && !normalize(k).includes('cpf') && !normalize(k).includes('mail'));
             if (firstKey) nome = String(row[firstKey] || '').trim();
         }
-        return { nome, cpf, email };
+        return { nome, cpf, email, codigo, vinculo, certEmitido, obs };
     }
 
     function getCertRows(fObj) {
@@ -2070,6 +2142,11 @@
             if (id) seen[tipo].add(id);
             groups[tipo].push({ ...info, link, tipo });
         };
+
+        if (fObj.type === 'levantamento') {
+            sheetNames.forEach(k => (data[k] || []).forEach(row => addRow('Participante', row)));
+            return groups;
+        }
 
         if (fObj.type === 'mulheres') {
             const key = sheetNames.find(k => /participante.*certif|certif.*participante|participante|certifi/i.test(normalize(k)));
@@ -2106,13 +2183,46 @@
         return y || '—';
     }
 
+    const CERT_MONTH_NAMES = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+
     function renderCertificadosPage() {
-        const sel = document.getElementById('cert-file-select');
+        const sel       = document.getElementById('cert-file-select');
+        const yearSel   = document.getElementById('cert-filter-year');
+        const monthSel  = document.getElementById('cert-filter-month');
         if (!sel) return;
+
         const skFn = f => (parseInt(f.year)||0)*10000 + (parseInt(f.month)||0)*100 + (parseInt(f.day)||0);
-        const sorted = [...uploadedFiles]
+        const allFiles = [...uploadedFiles]
             .filter(f => f.type !== 'masterclass')
             .sort((a,b) => skFn(b) - skFn(a));
+
+        // Populate year filter (preserve selection)
+        const prevYear  = yearSel.value;
+        const prevMonth = monthSel.value;
+        const years  = [...new Set(allFiles.map(f => f.year).filter(y => y && y !== 'Desconhecido'))].sort((a,b) => b-a);
+        const months = [...new Set(allFiles.map(f => parseInt(f.month)).filter(m => m > 0))].sort((a,b) => a-b);
+
+        yearSel.innerHTML = '<option value="">Todos</option>';
+        years.forEach(y => {
+            const o = document.createElement('option');
+            o.value = y; o.textContent = y; if (y === prevYear) o.selected = true;
+            yearSel.appendChild(o);
+        });
+        monthSel.innerHTML = '<option value="">Todos</option>';
+        months.forEach(m => {
+            const o = document.createElement('option');
+            o.value = m; o.textContent = CERT_MONTH_NAMES[m-1] || m; if (String(m) === prevMonth) o.selected = true;
+            monthSel.appendChild(o);
+        });
+
+        // Filter files by selected year/month
+        const selYear  = yearSel.value;
+        const selMonth = monthSel.value;
+        const sorted = allFiles.filter(f => {
+            if (selYear  && String(f.year)             !== selYear)  return false;
+            if (selMonth && String(parseInt(f.month))  !== selMonth) return false;
+            return true;
+        });
 
         const prev = sel.value;
         sel.innerHTML = '<option value="">— Selecione um projeto —</option>';
@@ -2143,6 +2253,10 @@
                 <td>${r.cpf  || '—'}</td>
                 <td>${r.email || '—'}</td>
                 <td style="text-align:center;">${dataConclusao}</td>
+                <td>${r.codigo || '—'}</td>
+                <td>${r.vinculo || '—'}</td>
+                <td style="text-align:center;">${r.certEmitido || '—'}</td>
+                <td>${r.obs || '—'}</td>
                 <td style="text-align:center;">${linkHtml}</td>
             </tr>`;
         }).join('');
@@ -2154,6 +2268,10 @@
                     <th>CPF</th>
                     <th>Email</th>
                     <th style="text-align:center;">Data de Conclusão</th>
+                    <th>Código do Projeto</th>
+                    <th>Vínculo</th>
+                    <th style="text-align:center;">Cert. Emitido?</th>
+                    <th>Observação</th>
                     <th style="text-align:center;">Certificado</th>
                 </tr></thead>
                 <tbody>${rowsHtml}</tbody>
@@ -2208,13 +2326,13 @@
         if (!fObj) return;
         const groups = getCertRows(fObj);
         const dataConclusao = fmtEventDate(fObj);
-        const header = ['#','Tipo','Nome Completo','CPF','Email','Data de Conclusão','Link Certificado'];
+        const allRows = ['Participante','Facilitador','Mentor'].flatMap(tipo => (groups[tipo] || []).map(r => ({ ...r, tipo })));
+        const header = ['#','Tipo','Nome Completo','CPF','Email','Data de Conclusão',
+            'Código do Projeto','Vínculo','Cert. Emitido?','Observação','Link Certificado'];
         const lines = [header];
-        let seq = 1;
-        ['Participante','Facilitador','Mentor'].forEach(tipo => {
-            (groups[tipo] || []).forEach(r => {
-                lines.push([seq++, tipo, r.nome||'', r.cpf||'', r.email||'', dataConclusao, r.link||'']);
-            });
+        allRows.forEach((r, i) => {
+            lines.push([i+1, r.tipo, r.nome||'', r.cpf||'', r.email||'', dataConclusao,
+                r.codigo||'', r.vinculo||'', r.certEmitido||'', r.obs||'', r.link||'']);
         });
         const csv = lines.map(l => l.map(v => '"' + String(v).replace(/"/g,'""') + '"').join(',')).join('\n');
         const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
