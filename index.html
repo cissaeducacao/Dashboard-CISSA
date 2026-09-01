@@ -425,6 +425,10 @@
                     <option value="">— Selecione um projeto —</option>
                 </select>
             </div>
+            <div style="flex:0 0 auto;padding-bottom:0;">
+                <label style="font-size:0.78rem;color:transparent;display:block;margin-bottom:4px;">.</label>
+                <button class="embrapii-export" style="height:41px;padding:0 18px;white-space:nowrap;" onclick="exportAllCertXLSX()">↓ Exportar Período (XLSX)</button>
+            </div>
         </div>
         <div id="cert-content">
             <p style="color:var(--text-muted);font-size:0.95rem;">Selecione um projeto acima para visualizar os certificados.</p>
@@ -2340,6 +2344,70 @@
         const a    = document.createElement('a');
         a.href = url; a.download = (getDisplayName(fObj) || fObj.name).replace(/[^\w\s-]/g,'') + ' — Certificados.csv';
         a.click(); URL.revokeObjectURL(url);
+    }
+
+    function exportAllCertXLSX() {
+        const yearSel  = document.getElementById('cert-filter-year');
+        const monthSel = document.getElementById('cert-filter-month');
+        const selYear  = yearSel  ? yearSel.value  : '';
+        const selMonth = monthSel ? monthSel.value : '';
+
+        const skFn = f => (parseInt(f.year)||0)*10000 + (parseInt(f.month)||0)*100 + (parseInt(f.day)||0);
+        const files = [...uploadedFiles]
+            .filter(f => f.type !== 'masterclass')
+            .filter(f => {
+                if (selYear  && String(f.year)            !== selYear)  return false;
+                if (selMonth && String(parseInt(f.month)) !== selMonth) return false;
+                return true;
+            })
+            .sort((a,b) => skFn(b) - skFn(a));
+
+        if (!files.length) { alert('Nenhum projeto no período selecionado.'); return; }
+
+        const HEADER = ['#','Tipo','Nome Completo','CPF','Email','Data de Conclusão',
+                        'Código do Projeto','Vínculo','Cert. Emitido?','Observação','Link Certificado'];
+
+        const wb = XLSX.utils.book_new();
+
+        files.forEach(fObj => {
+            const groups = getCertRows(fObj);
+            const dataConclusao = fmtEventDate(fObj);
+            const allRows = ['Participante','Facilitador','Mentor']
+                .flatMap(tipo => (groups[tipo] || []).map(r => ({ ...r, tipo })));
+
+            const aoa = [HEADER, ...allRows.map((r, i) => [
+                i+1, r.tipo, r.nome||'', r.cpf||'', r.email||'', dataConclusao,
+                r.codigo||'', r.vinculo||'', r.certEmitido||'', r.obs||'', r.link||''
+            ])];
+
+            const ws = XLSX.utils.aoa_to_sheet(aoa);
+
+            // Larguras de coluna
+            ws['!cols'] = [
+                {wch:4},{wch:13},{wch:30},{wch:16},{wch:30},{wch:18},
+                {wch:20},{wch:20},{wch:14},{wch:30},{wch:60}
+            ];
+
+            // Nome da aba: até 31 chars, sem chars proibidos
+            let tabName = (getDisplayName(fObj) || fObj.name)
+                .replace(/[:\\\/\?\*\[\]]/g, '')
+                .substring(0, 31)
+                .trim();
+            // Garante nome único
+            let base = tabName, n = 2;
+            while (wb.SheetNames.includes(tabName)) tabName = (base).substring(0, 28) + ' ' + n++;
+
+            XLSX.utils.book_append_sheet(wb, ws, tabName);
+        });
+
+        // Período para o nome do arquivo
+        let periodoLabel = '';
+        if (selYear && selMonth) periodoLabel = ` — ${CERT_MONTH_NAMES[parseInt(selMonth)-1]} ${selYear}`;
+        else if (selYear)  periodoLabel = ` — ${selYear}`;
+        else if (selMonth) periodoLabel = ` — ${CERT_MONTH_NAMES[parseInt(selMonth)-1]}`;
+
+        const fileName = `Certificados${periodoLabel}.xlsx`;
+        XLSX.writeFile(wb, fileName);
     }
 
     function renderEmbrapii(allFiles) {
