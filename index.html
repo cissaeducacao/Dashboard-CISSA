@@ -206,6 +206,14 @@
             <div class="chart-grid">
                 <div class="chart-card full-width" style="height:420px;"><h3>Funil de Participação por Edição</h3><div style="flex:1;overflow-x:auto;overflow-y:hidden;min-height:0;"><div id="funnel-scroll-inner" style="position:relative;height:100%;min-width:100%;"><canvas id="c-engage-funnel"></canvas></div></div></div>
                 <div class="chart-card" style="height:380px;"><h3>Certificados por Programa</h3><div class="canvas-wrapper"><canvas id="c-engage-certs"></canvas></div></div>
+                <div id="card-daily-presence" class="chart-card full-width hidden" style="height:420px;">
+                    <h3>Presença por Dia</h3>
+                    <div style="flex:1;overflow-x:auto;overflow-y:hidden;min-height:0;">
+                        <div id="daily-presence-scroll" style="position:relative;height:100%;min-width:100%;">
+                            <canvas id="c-daily-presence"></canvas>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
         <div id="abandon-content" class="hidden">
@@ -548,7 +556,45 @@
         });
 
         let type = 'cyberthon';
-        if (fileName.toLowerCase().includes('levantamento') || fileName.toLowerCase().includes('alunos formados')) {
+        if (fileName.toLowerCase().includes('cissa lab') || sheetNamesLower.some(s => s.includes('dados participantes') && sheetNamesLower.includes('indicados'))) {
+            type = 'cissa-lab';
+        } else if (fileName.toLowerCase().includes('journey') || sheetNamesLower.some(s => /controle.*presen/.test(s))) {
+            type = 'cissa-journey';
+            // Re-parse "Controle de Presença": combine row2+row3 as merged header, data from row4+
+            workbook.SheetNames.forEach(sheetName => {
+                if (!/controle.*presen/i.test(normalize(sheetName))) return;
+                const ws  = workbook.Sheets[sheetName];
+                const raw = XLSX.utils.sheet_to_json(ws, { header: 1 });
+                const r2  = raw[1] || [];  // month group labels + summary labels
+                const r3  = raw[2] || [];  // NOME, EMAIL, CPF, date columns
+                const maxCols = Math.max(r2.length, r3.length);
+                const MONTH_NUM = { 'janeiro':'01','fevereiro':'02','marco':'03','abril':'04','maio':'05',
+                    'junho':'06','julho':'07','agosto':'08','setembro':'09','outubro':'10','novembro':'11','dezembro':'12' };
+                const headers = [];
+                let curMonth = '';
+                for (let i = 0; i < maxCols; i++) {
+                    const mStr = normalize(String(r2[i] || ''));
+                    if (MONTH_NUM[mStr]) curMonth = MONTH_NUM[mStr];
+                    const dayRaw = String(r3[i] === undefined ? '' : r3[i]).trim();
+                    const dayNum = parseFloat(dayRaw);
+                    if (!isNaN(dayNum) && dayRaw !== '' && !/[a-z]/i.test(dayRaw) && curMonth) {
+                        headers[i] = String(Math.round(dayNum)).padStart(2,'0') + '/' + curMonth;
+                    } else {
+                        headers[i] = (r3[i] !== undefined && r3[i] !== '' && r3[i] !== null) ? r3[i] : (r2[i] || '');
+                    }
+                }
+                sheets[sheetName] = raw.slice(3)
+                    .map(r => {
+                        const obj = {};
+                        headers.forEach((h, i) => {
+                            if (h !== '' && h !== null && h !== undefined)
+                                obj[String(h)] = r[i] !== undefined ? r[i] : '';
+                        });
+                        return obj;
+                    })
+                    .filter(r => r['NOME COMPLETO (de acordo com o RG)'] || r['E-MAIL'] || r['CPF']);
+            });
+        } else if (fileName.toLowerCase().includes('levantamento') || fileName.toLowerCase().includes('alunos formados')) {
             type = 'levantamento';
             // Re-parse each sheet: find the real header row (first row that has "Nome" or "CPF")
             workbook.SheetNames.forEach(sheetName => {
@@ -748,6 +794,8 @@
         let mulheresFiles   = dashFiles.filter(f => f.type === 'mulheres');
         let summerFiles     = dashFiles.filter(f => f.type === 'summer-job');
         let masterFiles     = dashFiles.filter(f => f.type === 'masterclass');
+        let cissaLabFiles   = dashFiles.filter(f => f.type === 'cissa-lab');
+        let cissaJourneyFiles = dashFiles.filter(f => f.type === 'cissa-journey');
         let html = '';
 
         const buildMenu = (files, typeKey, title) => {
@@ -820,10 +868,12 @@
             html += geralHtml;
         }
 
-        html += buildMenu(cyberFiles,   'cyberthon',   'Cyberthon');
-        html += buildMenu(handsFiles,   'handson',     'Hands On');
-        html += buildMenu(summerFiles,  'summerjob',   'Summer Job');
-        html += buildMenu(masterFiles,  'masterclass', 'Masterclass');
+        html += buildMenu(cyberFiles,       'cyberthon',    'Cyberthon');
+        html += buildMenu(handsFiles,       'handson',      'Hands On');
+        html += buildMenu(summerFiles,      'summerjob',    'Summer Job');
+        html += buildMenu(masterFiles,      'masterclass',  'Masterclass');
+        html += buildMenu(cissaLabFiles,    'cissalab',     'CISSA Lab');
+        html += buildMenu(cissaJourneyFiles,'cissajourney', 'CISSA Journey');
 
         container.innerHTML = html;
         document.querySelectorAll('.project-btn.general').forEach(b => { if(!['btn-page-dash','btn-page-portfolio','btn-page-embrapii','btn-page-certificados'].includes(b.id)) b.classList.remove('active'); });
@@ -861,17 +911,23 @@
         else if (scope === 'handson_all')     filesToProcess = uploadedFiles.filter(f => f.type === 'hands-on');
         else if (scope === 'mulheres_all')    filesToProcess = uploadedFiles.filter(f => f.type === 'mulheres');
         else if (scope === 'summerjob_all')     filesToProcess = uploadedFiles.filter(f => f.type === 'summer-job');
-        else if (scope === 'masterclass_all')   filesToProcess = uploadedFiles.filter(f => f.type === 'masterclass');
-        else if (scope.startsWith('cyberthon_year_'))     filesToProcess = uploadedFiles.filter(f => f.type === 'cyberthon'    && f.year === scope.replace('cyberthon_year_', ''));
-        else if (scope.startsWith('cyberthon_month_'))    filesToProcess = uploadedFiles.filter(f => f.type === 'cyberthon'    && f.monthKey === scope.replace('cyberthon_month_', ''));
-        else if (scope.startsWith('handson_year_'))       filesToProcess = uploadedFiles.filter(f => f.type === 'hands-on'     && f.year === scope.replace('handson_year_', ''));
-        else if (scope.startsWith('handson_month_'))      filesToProcess = uploadedFiles.filter(f => f.type === 'hands-on'     && f.monthKey === scope.replace('handson_month_', ''));
-        else if (scope.startsWith('mulheres_year_'))      filesToProcess = uploadedFiles.filter(f => f.type === 'mulheres'     && f.year === scope.replace('mulheres_year_', ''));
-        else if (scope.startsWith('mulheres_month_'))     filesToProcess = uploadedFiles.filter(f => f.type === 'mulheres'     && f.monthKey === scope.replace('mulheres_month_', ''));
-        else if (scope.startsWith('summerjob_year_'))     filesToProcess = uploadedFiles.filter(f => f.type === 'summer-job'   && f.year === scope.replace('summerjob_year_', ''));
-        else if (scope.startsWith('summerjob_month_'))    filesToProcess = uploadedFiles.filter(f => f.type === 'summer-job'   && f.monthKey === scope.replace('summerjob_month_', ''));
-        else if (scope.startsWith('masterclass_year_'))   filesToProcess = uploadedFiles.filter(f => f.type === 'masterclass'  && f.year === scope.replace('masterclass_year_', ''));
-        else if (scope.startsWith('masterclass_month_'))  filesToProcess = uploadedFiles.filter(f => f.type === 'masterclass'  && f.monthKey === scope.replace('masterclass_month_', ''));
+        else if (scope === 'masterclass_all')    filesToProcess = uploadedFiles.filter(f => f.type === 'masterclass');
+        else if (scope === 'cissalab_all')       filesToProcess = uploadedFiles.filter(f => f.type === 'cissa-lab');
+        else if (scope === 'cissajourney_all')   filesToProcess = uploadedFiles.filter(f => f.type === 'cissa-journey');
+        else if (scope.startsWith('cyberthon_year_'))      filesToProcess = uploadedFiles.filter(f => f.type === 'cyberthon'     && f.year === scope.replace('cyberthon_year_', ''));
+        else if (scope.startsWith('cyberthon_month_'))     filesToProcess = uploadedFiles.filter(f => f.type === 'cyberthon'     && f.monthKey === scope.replace('cyberthon_month_', ''));
+        else if (scope.startsWith('handson_year_'))        filesToProcess = uploadedFiles.filter(f => f.type === 'hands-on'      && f.year === scope.replace('handson_year_', ''));
+        else if (scope.startsWith('handson_month_'))       filesToProcess = uploadedFiles.filter(f => f.type === 'hands-on'      && f.monthKey === scope.replace('handson_month_', ''));
+        else if (scope.startsWith('mulheres_year_'))       filesToProcess = uploadedFiles.filter(f => f.type === 'mulheres'      && f.year === scope.replace('mulheres_year_', ''));
+        else if (scope.startsWith('mulheres_month_'))      filesToProcess = uploadedFiles.filter(f => f.type === 'mulheres'      && f.monthKey === scope.replace('mulheres_month_', ''));
+        else if (scope.startsWith('summerjob_year_'))      filesToProcess = uploadedFiles.filter(f => f.type === 'summer-job'    && f.year === scope.replace('summerjob_year_', ''));
+        else if (scope.startsWith('summerjob_month_'))     filesToProcess = uploadedFiles.filter(f => f.type === 'summer-job'    && f.monthKey === scope.replace('summerjob_month_', ''));
+        else if (scope.startsWith('masterclass_year_'))    filesToProcess = uploadedFiles.filter(f => f.type === 'masterclass'   && f.year === scope.replace('masterclass_year_', ''));
+        else if (scope.startsWith('masterclass_month_'))   filesToProcess = uploadedFiles.filter(f => f.type === 'masterclass'   && f.monthKey === scope.replace('masterclass_month_', ''));
+        else if (scope.startsWith('cissalab_year_'))       filesToProcess = uploadedFiles.filter(f => f.type === 'cissa-lab'     && f.year === scope.replace('cissalab_year_', ''));
+        else if (scope.startsWith('cissalab_month_'))      filesToProcess = uploadedFiles.filter(f => f.type === 'cissa-lab'     && f.monthKey === scope.replace('cissalab_month_', ''));
+        else if (scope.startsWith('cissajourney_year_'))   filesToProcess = uploadedFiles.filter(f => f.type === 'cissa-journey' && f.year === scope.replace('cissajourney_year_', ''));
+        else if (scope.startsWith('cissajourney_month_'))  filesToProcess = uploadedFiles.filter(f => f.type === 'cissa-journey' && f.monthKey === scope.replace('cissajourney_month_', ''));
         else filesToProcess = uploadedFiles.filter(f => f.id === scope);
 
         // Levantamento files are cert-only — exclude from KPI/chart processing
@@ -881,10 +937,12 @@
         pTypeGlobal = uniqueTypes.length === 1 ? uniqueTypes[0] : 'unified';
 
         let title = "VISÃO GERAL (TODOS OS EVENTOS)";
-        if      (scope === 'cyberthon_all') title = "GERAL (CYBERTHON)";
-        else if (scope === 'handson_all')   title = "GERAL (HANDS ON)";
-        else if (scope === 'mulheres_all')  title = "GERAL (MULHERES EM CIBERSEGURANÇA)";
-        else if (scope === 'summerjob_all') title = "GERAL (SUMMER JOB)";
+        if      (scope === 'cyberthon_all')    title = "GERAL (CYBERTHON)";
+        else if (scope === 'handson_all')    title = "GERAL (HANDS ON)";
+        else if (scope === 'mulheres_all')   title = "GERAL (MULHERES EM CIBERSEGURANÇA)";
+        else if (scope === 'summerjob_all')  title = "GERAL (SUMMER JOB)";
+        else if (scope === 'cissalab_all')   title = "GERAL (CISSA LAB)";
+        else if (scope === 'cissajourney_all') title = "GERAL (CISSA JOURNEY)";
         else if (scope.startsWith('all_year_'))    title = "GERAL " + scope.replace('all_year_', '');
         else if (scope.startsWith('all_month_'))   { let [mm,yy]=scope.replace('all_month_','').split('_'); title="GERAL — "+monthNames[mm].toUpperCase()+" DE "+yy; }
         else if (scope.startsWith('cyberthon_year_'))  title = "CYBERTHON ANO: " + scope.replace('cyberthon_year_', '');
@@ -961,17 +1019,23 @@
         else if (currentScope === 'handson_all')     filesToProcess = uploadedFiles.filter(f => f.type === 'hands-on');
         else if (currentScope === 'mulheres_all')    filesToProcess = uploadedFiles.filter(f => f.type === 'mulheres');
         else if (currentScope === 'summerjob_all')     filesToProcess = uploadedFiles.filter(f => f.type === 'summer-job');
-        else if (currentScope === 'masterclass_all')   filesToProcess = uploadedFiles.filter(f => f.type === 'masterclass');
-        else if (currentScope.startsWith('cyberthon_year_'))     filesToProcess = uploadedFiles.filter(f => f.type === 'cyberthon'   && f.year === currentScope.replace('cyberthon_year_', ''));
-        else if (currentScope.startsWith('cyberthon_month_'))    filesToProcess = uploadedFiles.filter(f => f.type === 'cyberthon'   && f.monthKey === currentScope.replace('cyberthon_month_', ''));
-        else if (currentScope.startsWith('handson_year_'))       filesToProcess = uploadedFiles.filter(f => f.type === 'hands-on'    && f.year === currentScope.replace('handson_year_', ''));
-        else if (currentScope.startsWith('handson_month_'))      filesToProcess = uploadedFiles.filter(f => f.type === 'hands-on'    && f.monthKey === currentScope.replace('handson_month_', ''));
-        else if (currentScope.startsWith('mulheres_year_'))      filesToProcess = uploadedFiles.filter(f => f.type === 'mulheres'    && f.year === currentScope.replace('mulheres_year_', ''));
-        else if (currentScope.startsWith('mulheres_month_'))     filesToProcess = uploadedFiles.filter(f => f.type === 'mulheres'    && f.monthKey === currentScope.replace('mulheres_month_', ''));
-        else if (currentScope.startsWith('summerjob_year_'))     filesToProcess = uploadedFiles.filter(f => f.type === 'summer-job'  && f.year === currentScope.replace('summerjob_year_', ''));
-        else if (currentScope.startsWith('summerjob_month_'))    filesToProcess = uploadedFiles.filter(f => f.type === 'summer-job'  && f.monthKey === currentScope.replace('summerjob_month_', ''));
-        else if (currentScope.startsWith('masterclass_year_'))   filesToProcess = uploadedFiles.filter(f => f.type === 'masterclass' && f.year === currentScope.replace('masterclass_year_', ''));
-        else if (currentScope.startsWith('masterclass_month_'))  filesToProcess = uploadedFiles.filter(f => f.type === 'masterclass' && f.monthKey === currentScope.replace('masterclass_month_', ''));
+        else if (currentScope === 'masterclass_all')    filesToProcess = uploadedFiles.filter(f => f.type === 'masterclass');
+        else if (currentScope === 'cissalab_all')       filesToProcess = uploadedFiles.filter(f => f.type === 'cissa-lab');
+        else if (currentScope === 'cissajourney_all')   filesToProcess = uploadedFiles.filter(f => f.type === 'cissa-journey');
+        else if (currentScope.startsWith('cyberthon_year_'))      filesToProcess = uploadedFiles.filter(f => f.type === 'cyberthon'     && f.year === currentScope.replace('cyberthon_year_', ''));
+        else if (currentScope.startsWith('cyberthon_month_'))     filesToProcess = uploadedFiles.filter(f => f.type === 'cyberthon'     && f.monthKey === currentScope.replace('cyberthon_month_', ''));
+        else if (currentScope.startsWith('handson_year_'))        filesToProcess = uploadedFiles.filter(f => f.type === 'hands-on'      && f.year === currentScope.replace('handson_year_', ''));
+        else if (currentScope.startsWith('handson_month_'))       filesToProcess = uploadedFiles.filter(f => f.type === 'hands-on'      && f.monthKey === currentScope.replace('handson_month_', ''));
+        else if (currentScope.startsWith('mulheres_year_'))       filesToProcess = uploadedFiles.filter(f => f.type === 'mulheres'      && f.year === currentScope.replace('mulheres_year_', ''));
+        else if (currentScope.startsWith('mulheres_month_'))      filesToProcess = uploadedFiles.filter(f => f.type === 'mulheres'      && f.monthKey === currentScope.replace('mulheres_month_', ''));
+        else if (currentScope.startsWith('summerjob_year_'))      filesToProcess = uploadedFiles.filter(f => f.type === 'summer-job'    && f.year === currentScope.replace('summerjob_year_', ''));
+        else if (currentScope.startsWith('summerjob_month_'))     filesToProcess = uploadedFiles.filter(f => f.type === 'summer-job'    && f.monthKey === currentScope.replace('summerjob_month_', ''));
+        else if (currentScope.startsWith('masterclass_year_'))    filesToProcess = uploadedFiles.filter(f => f.type === 'masterclass'   && f.year === currentScope.replace('masterclass_year_', ''));
+        else if (currentScope.startsWith('masterclass_month_'))   filesToProcess = uploadedFiles.filter(f => f.type === 'masterclass'   && f.monthKey === currentScope.replace('masterclass_month_', ''));
+        else if (currentScope.startsWith('cissalab_year_'))       filesToProcess = uploadedFiles.filter(f => f.type === 'cissa-lab'     && f.year === currentScope.replace('cissalab_year_', ''));
+        else if (currentScope.startsWith('cissalab_month_'))      filesToProcess = uploadedFiles.filter(f => f.type === 'cissa-lab'     && f.monthKey === currentScope.replace('cissalab_month_', ''));
+        else if (currentScope.startsWith('cissajourney_year_'))   filesToProcess = uploadedFiles.filter(f => f.type === 'cissa-journey' && f.year === currentScope.replace('cissajourney_year_', ''));
+        else if (currentScope.startsWith('cissajourney_month_'))  filesToProcess = uploadedFiles.filter(f => f.type === 'cissa-journey' && f.monthKey === currentScope.replace('cissajourney_month_', ''));
         else filesToProcess = uploadedFiles.filter(f => f.id === currentScope);
 
         // getSheetData agora é global (definida acima de renderDashboard)
@@ -982,6 +1046,11 @@
             pres.forEach(row => {
                 let ids = getIdsFromRow(row), isActive = false;
                 if (fObj.type === 'hands-on') isActive = true;
+                else if (fObj.type === 'cissa-journey') {
+                    const totalPresKey = Object.keys(row).find(k => /total.*presen/i.test(normalize(k)));
+                    if (totalPresKey !== undefined) isActive = parseInt(row[totalPresKey]) > 0;
+                    else isActive = Object.values(row).some(v => ['TRUE','SIM','VERDADEIRO','V','1','X'].includes(String(v).toUpperCase().trim()));
+                }
                 else {
                     let hasPresenceCol = Object.keys(row).some(k => /presen|dia /i.test(normalize(k)));
                     if (hasPresenceCol) {
@@ -1016,6 +1085,8 @@
                 return;
             }
             let insc = getSheetData(data, [/estudantes/, /inscri/, /respostas/, /form/]);
+            // CISSA Lab: always use "DADOS PARTICIPANTES" (DADOS ESTUDANTES is empty/irrelevant)
+            if (pType === 'cissa-lab') insc = getSheetData(data, [/dados.*participante/i]) || getSheetData(data, [/indicad/]) || insc;
             if (!insc) {
                  let sortedSheets = Object.keys(data).sort((a,b) => data[b].length - data[a].length);
                  insc = sortedSheets.length > 0 ? data[sortedSheets[0]] : [];
@@ -1072,6 +1143,11 @@
                     else if (totalKey) { const t = parseFloat(String(row[totalKey]).replace(',','.')); isActive = !isNaN(t) && t > 0; }
                     else isActive = true;
                 }
+                else if (pType === 'cissa-journey') {
+                    const totalPresKey = Object.keys(row).find(k => /total.*presen/i.test(normalize(k)));
+                    if (totalPresKey !== undefined) isActive = parseInt(row[totalPresKey]) > 0;
+                    else isActive = Object.values(row).some(v => ['TRUE','SIM','VERDADEIRO','V','1','X'].includes(String(v).toUpperCase().trim()));
+                }
                 else {
                     let hasPresenceCol = Object.keys(row).some(k => /presen|dia /i.test(normalize(k)));
                     if (hasPresenceCol) {
@@ -1120,7 +1196,7 @@
         }
 
         // ── KPIs e charts de engajamento (só na aba "ativos") ───────────────
-        let certsCyberthon = 0, certsHandsOn = 0, certsMulheres = 0, certsSummer = 0, certsMasterclass = 0, cFacil = 0, cMent = 0;
+        let certsCyberthon = 0, certsHandsOn = 0, certsMulheres = 0, certsSummer = 0, certsMasterclass = 0, certsCissaLab = 0, certsCissaJourney = 0, cFacil = 0, cMent = 0;
         let recorrentes = 0;
         currentViewStudents.forEach(id => { if (globalStudentPresence[id] && globalStudentPresence[id].size > 1) recorrentes++; });
         let esperados = combinedInscricoes.length;
@@ -1175,9 +1251,28 @@
                 cMent  += countLinks(certM);
             }
             else if (pType === 'masterclass') certsMasterclass += getMasterclassMetrics(fObj).certs;
+            else if (pType === 'cissa-lab') {
+                certsCissaLab += alunosLinked.size;
+                cFacil += countLinks(certF);
+                cMent  += countLinks(certM);
+            }
+            else if (pType === 'cissa-journey') {
+                // Journey: certificados = quem tem DIREITO A CERTIFICADO? = Sim
+                const presJ = getSheetData(fObj.data, [/presen/]) || [];
+                const certSet = new Set();
+                presJ.forEach(row => {
+                    const dirKey = Object.keys(row).find(k => /direito.*certif/i.test(normalize(k)));
+                    if (dirKey && /sim/i.test(String(row[dirKey]||''))) {
+                        const ids = getIdsFromRow(row);
+                        const id = ids.cpfs[0] || ids.emails[0] || ids.nomes[0];
+                        if (id) certSet.add(id);
+                    }
+                });
+                certsCissaJourney += certSet.size;
+            }
             else certsHandsOn += alunosLinked.size;
         });
-        let totalCerts = certsCyberthon + certsHandsOn + certsMulheres + certsSummer + certsMasterclass + cFacil + cMent;
+        let totalCerts = certsCyberthon + certsHandsOn + certsMulheres + certsSummer + certsMasterclass + certsCissaLab + certsCissaJourney + cFacil + cMent;
 
         if (currentView === 'ativos') {
             let grid = document.getElementById('kpi-grid');
@@ -1194,7 +1289,7 @@
                         ${cMent  > 0 ? `<span>🧑‍💼 Mentores <b>${cMent}</b></span>`       : ''}
                     </div>
                 </div>`;
-            renderEngagement(filesToProcess, totalRealizados, recorrentes, certsCyberthon, certsHandsOn, certsMulheres, certsSummer, cFacil, cMent, certsMasterclass);
+            renderEngagement(filesToProcess, totalRealizados, recorrentes, certsCyberthon, certsHandsOn, certsMulheres, certsSummer, cFacil, cMent, certsMasterclass, certsCissaLab, certsCissaJourney);
         }
 
         let isCyber = pTypeGlobal === 'cyberthon';
@@ -1204,7 +1299,7 @@
 
         // ── Visibilidade dinâmica das abas ──────────────────────────────────
         const isMasterclass = pTypeGlobal === 'masterclass';
-        const hasPresenca = combinedPresenca.length > 0 || pTypeGlobal === 'hands-on' || pTypeGlobal === 'summer-job' || isMasterclass;
+        const hasPresenca = combinedPresenca.length > 0 || pTypeGlobal === 'hands-on' || pTypeGlobal === 'summer-job' || isMasterclass || pTypeGlobal === 'cissa-lab' || pTypeGlobal === 'cissa-journey';
         const isSummer    = pTypeGlobal === 'summer-job' || isMasterclass;
         document.getElementById('tab-geral').classList.toggle('hidden', isSummer);
         const hasReacao   = combinedReacao.length > 0;
@@ -1238,7 +1333,7 @@
         if (currentView === 'abandono')  renderAbandonment(combinedInscricoes, combinedPresenca, totalAtivosCPFs, totalAtivosEmails, totalAtivosNomes, totalAtivosBase);
         else if (currentView === 'avaliacao') renderEvaluation(combinedReacao, filesToProcess);
         else if (currentView === 'banca' && pTypeGlobal === 'cyberthon') renderBanca(combinedBanca, filesToProcess);
-        else if (currentView === 'ativos') renderEngagement(filesToProcess, totalRealizados, recorrentes, certsCyberthon, certsHandsOn, certsMulheres, certsSummer, cFacil, cMent, certsMasterclass);
+        else if (currentView === 'ativos') renderEngagement(filesToProcess, totalRealizados, recorrentes, certsCyberthon, certsHandsOn, certsMulheres, certsSummer, cFacil, cMent, certsMasterclass, certsCissaLab, certsCissaJourney);
         else if (currentView === 'mc-perm') renderMasterclassPermanencia(filesToProcess);
         else if (currentView === 'mc-cert') renderMasterclassCertificacao(filesToProcess);
         else if (currentView === 'geral' && !isSummer) renderDemographics(filteredData);
@@ -1262,6 +1357,8 @@
     }
 
     function getDisplayName(fObj) {
+        if (fObj.type === 'cissa-lab')     return fObj.name.replace(/^[^\/]+\//, '').replace(/\s*CISSA\s*/gi, ' CISSA ').trim();
+        if (fObj.type === 'cissa-journey') return fObj.name.replace(/^[^\/]+\//, '').trim();
         if (fObj.type === 'hands-on') return extractTitle(fObj.name);
         if (fObj.type === 'mulheres') {
             // Remove prefixo de pasta, boilerplate do Form e mantém só a edição
@@ -1386,7 +1483,128 @@
         el.innerHTML = html;
     }
 
-    function renderEngagement(filesToProcess, totalRealizados, recorrentes, certsCyberthon, certsHandsOn, certsMulheres, certsSummer, cFacil, cMent, certsMasterclass = 0) {
+    function getDailyPresenceData(fObj) {
+        const data = fObj.data;
+        const PRESENT = new Set(['1','TRUE','SIM','VERDADEIRO','V','X','S','PRESENT','P']);
+        let presRows = null, dayKeys = [];
+
+        if (fObj.type === 'cissa-journey') {
+            const pk = Object.keys(data).find(k => /controle.*presen|presen/i.test(normalize(k)));
+            if (!pk || !data[pk].length) return null;
+            presRows = data[pk];
+            // Day columns are now in "DD/MM" format after re-parse
+            dayKeys = Object.keys(presRows[0] || {})
+                .filter(k => /^\d{2}\/\d{2}$/.test(k))
+                .sort((a, b) => {
+                    const [da, ma] = a.split('/').map(Number);
+                    const [db, mb] = b.split('/').map(Number);
+                    return ma !== mb ? ma - mb : da - db;
+                });
+        } else {
+            // Cyberthon / hands-on / summer-job: detect date-like columns
+            const pk = Object.keys(data).find(k => /presen/i.test(normalize(k)));
+            if (!pk || !data[pk].length) return null;
+            presRows = data[pk];
+            const isDateCol = k => /^\d{1,2}[\/\-\.]\d{1,2}/.test(k.trim()) || /\bdia\s*\d/i.test(k);
+            dayKeys = Object.keys(presRows[0] || {}).filter(isDateCol);
+        }
+
+        if (!presRows || dayKeys.length < 2) return null;
+
+        const threshold = fObj.type === 'cissa-journey' ? 0.8 : 1.0;
+        const dailyPresent = [], daily80plus = [];
+        dayKeys.forEach((dk, di) => {
+            let presentCount = 0, hasThreshold = 0;
+            presRows.forEach(row => {
+                if (PRESENT.has(String(row[dk] || '').toUpperCase().trim())) presentCount++;
+                let att = 0;
+                for (let d = 0; d <= di; d++) {
+                    if (PRESENT.has(String(row[dayKeys[d]] || '').toUpperCase().trim())) att++;
+                }
+                if (att / (di + 1) >= threshold) hasThreshold++;
+            });
+            dailyPresent.push(presentCount);
+            daily80plus.push(hasThreshold);
+        });
+
+        return { dayKeys, dailyPresent, daily80plus, total: presRows.length, threshold };
+    }
+
+    function renderDailyPresenceChart(filesToProcess) {
+        const card = document.getElementById('card-daily-presence');
+        if (!card) return;
+        if (charts['c-daily-presence']) { charts['c-daily-presence'].destroy(); delete charts['c-daily-presence']; }
+
+        // Only show for individual events (single file), not in general views
+        if (filesToProcess.length !== 1) { card.classList.add('hidden'); return; }
+
+        const d = getDailyPresenceData(filesToProcess[0]);
+        if (!d) { card.classList.add('hidden'); return; }
+
+        const allDayKeys = d.dayKeys, allPresent = d.dailyPresent, all80 = d.daily80plus;
+        const thresholdPct = Math.round(d.threshold * 100);
+        card.classList.remove('hidden');
+
+        const isDark = document.body.classList.contains('dark-mode');
+        const textColor = isDark ? '#E8E8E8' : '#232323';
+        const gridColor = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)';
+        const barW = Math.max(20, Math.min(50, Math.floor(480 / allDayKeys.length)));
+        const scrollInner = document.getElementById('daily-presence-scroll');
+        if (scrollInner) {
+            const outerW = scrollInner.parentElement.clientWidth || 600;
+            scrollInner.style.width = Math.max(outerW, allDayKeys.length * 65) + 'px';
+        }
+
+        charts['c-daily-presence'] = new Chart(document.getElementById('c-daily-presence'), {
+            data: {
+                labels: allDayKeys,
+                datasets: [
+                    {
+                        type: 'bar',
+                        label: 'Presentes no dia',
+                        data: allPresent,
+                        backgroundColor: 'rgba(55,91,149,0.75)',
+                        borderColor: '#375B95',
+                        borderWidth: 1,
+                        barThickness: barW,
+                        yAxisID: 'y'
+                    },
+                    {
+                        type: 'line',
+                        label: `Com ${thresholdPct}%+ de presença até o dia`,
+                        data: all80,
+                        borderColor: '#D25600',
+                        backgroundColor: 'rgba(210,86,0,0.12)',
+                        pointBackgroundColor: '#D25600',
+                        pointRadius: 5,
+                        pointHoverRadius: 7,
+                        fill: true,
+                        tension: 0.3,
+                        yAxisID: 'y'
+                    }
+                ]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                interaction: { mode: 'index', intersect: false },
+                plugins: {
+                    legend: { labels: { color: textColor, font: { family: "'DM Sans',sans-serif" } } },
+                    datalabels: {
+                        display: ctx => ctx.datasetIndex === 0,
+                        color: '#fff', font: { weight: 'bold', size: 10 },
+                        formatter: v => v > 0 ? v : ''
+                    },
+                    tooltip: { mode: 'index', intersect: false }
+                },
+                scales: {
+                    x: { ticks: { color: textColor, maxRotation: 35 }, grid: { color: gridColor } },
+                    y: { ticks: { color: textColor }, grid: { color: gridColor }, beginAtZero: true }
+                }
+            }
+        });
+    }
+
+    function renderEngagement(filesToProcess, totalRealizados, recorrentes, certsCyberthon, certsHandsOn, certsMulheres, certsSummer, cFacil, cMent, certsMasterclass = 0, certsCissaLab = 0, certsCissaJourney = 0) {
         // Funil por edição — mais recente à esquerda
         const skFn = f => (parseInt(f.year)||0)*10000 + (parseInt(f.month)||0)*100 + (parseInt(f.day)||0);
         const sortedFiles = [...filesToProcess].sort((a, b) => skFn(b) - skFn(a));
@@ -1401,10 +1619,31 @@
                     ? ' — ' + (monthNames[fObj.month] || fObj.month) + '/' + fObj.year
                     : '';
                 title = short + datePart;
+            } else if (fObj.type === 'cissa-journey') {
+                // Show only last session date: extract last DD_MM before year
+                const lastDate = title.match(/(\d{1,2})[_\/](\d{2})[_\/](20\d{2})/);
+                if (lastDate) {
+                    title = 'CISSA Journey ' + lastDate[1].padStart(2,'0') + '/' + lastDate[2];
+                } else {
+                    // Fallback: last DD_MM in name
+                    const allD = [...title.matchAll(/\b(\d{1,2})[_](\d{2})\b/g)].filter(m => +m[2] >= 1 && +m[2] <= 12);
+                    if (allD.length) {
+                        const last = allD[allD.length - 1];
+                        title = 'CISSA Journey ' + last[1].padStart(2,'0') + '/' + last[2];
+                    }
+                }
             }
             labels.push(title);
             fullLabels.push(fullTitle);
-            bgColors.push(fObj.type === 'cyberthon' ? '#375B95' : fObj.type === 'mulheres' ? '#F37623' : fObj.type === 'summer-job' ? '#5A83C4' : fObj.type === 'masterclass' ? '#7B5EA7' : '#D25600');
+            bgColors.push(
+                fObj.type === 'cyberthon'     ? '#375B95' :
+                fObj.type === 'mulheres'      ? '#F37623' :
+                fObj.type === 'summer-job'    ? '#5A83C4' :
+                fObj.type === 'masterclass'   ? '#7B5EA7' :
+                fObj.type === 'cissa-lab'     ? '#2B7A4B' :
+                fObj.type === 'cissa-journey' ? '#00796B' :
+                '#D25600'
+            );
 
             // ── Mulheres: tudo vem da aba de participantes/certificados ────────
             if (fObj.type === 'mulheres') {
@@ -1471,6 +1710,32 @@
                     return true;
                 }).length;
                 certs  = contarCertsPorLink([presData]);
+            } else if (fObj.type === 'cissa-lab') {
+                const PRESENCA_VALS = new Set(['TRUE','SIM','VERDADEIRO','V','1','X','S']);
+                presData.forEach(r => {
+                    const presKey = Object.keys(r).find(k => /presenca|presen/i.test(normalize(k)) && !/certif/i.test(normalize(k)));
+                    if (presKey && PRESENCA_VALS.has(String(r[presKey]).toUpperCase().trim())) ativos++;
+                });
+                if (!ativos) ativos = presData.length;
+                certs = contarCertsPorLink([presData]);
+                // Inscricoes: DADOS PARTICIPANTES ou INDICADOS
+                const inscLabSheet = getSheetData(fObj.data, [/dados.*participante/i]) || getSheetData(fObj.data, [/indicad/i]) || [];
+                inscritos[inscritos.length - 1] = inscLabSheet.length || presData.length;
+            } else if (fObj.type === 'cissa-journey') {
+                // Inscrições: Lista de Inscritos
+                const inscJSheet = getSheetData(fObj.data, [/inscri/]) || [];
+                inscritos[inscritos.length - 1] = inscJSheet.length;
+                // Participações: TOTAL DE PRESENÇA > 0
+                presData.forEach(r => {
+                    const totalPresKey = Object.keys(r).find(k => /total.*presen/i.test(normalize(k)));
+                    if (totalPresKey !== undefined && parseInt(r[totalPresKey]) > 0) ativos++;
+                });
+                if (!ativos) ativos = presData.filter(r => Object.values(r).some(v => ['TRUE','SIM','VERDADEIRO','V','1','X'].includes(String(v).toUpperCase().trim()))).length;
+                // Certificados: DIREITO A CERTIFICADO? = Sim
+                presData.forEach(r => {
+                    const dirKey = Object.keys(r).find(k => /direito.*certif/i.test(normalize(k)));
+                    if (dirKey && /sim/i.test(String(r[dirKey]||''))) certs++;
+                });
             } else if (fObj.type === 'hands-on') {
                 ativos = presData.length;
                 // Certificados: links na lista de presença (coluna ao lado)
@@ -1502,7 +1767,8 @@
             certificados.push(certs);
         });
 
-        ['c-engage-funnel','c-engage-certs'].forEach(id => { if(charts[id]) { charts[id].destroy(); delete charts[id]; } });
+        ['c-engage-funnel','c-engage-certs','c-daily-presence'].forEach(id => { if(charts[id]) { charts[id].destroy(); delete charts[id]; } });
+        renderDailyPresenceChart(filesToProcess);
 
         if (labels.length > 0) {
             const isDark = document.body.classList.contains('dark-mode');
@@ -1608,6 +1874,8 @@
         if (certsMulheres > 0)     { certsLabels.push('Mulheres em Ciber');     certsData.push(certsMulheres);     certsColors.push('#F37623'); }
         if (certsSummer > 0)       { certsLabels.push('Alunos — Summer Job');   certsData.push(certsSummer);       certsColors.push('#5A83C4'); }
         if (certsMasterclass > 0)  { certsLabels.push('Masterclass');           certsData.push(certsMasterclass);  certsColors.push('#7B5EA7'); }
+        if (certsCissaLab > 0)     { certsLabels.push('CISSA Lab');              certsData.push(certsCissaLab);     certsColors.push('#2B7A4B'); }
+        if (certsCissaJourney > 0) { certsLabels.push('CISSA Journey');          certsData.push(certsCissaJourney); certsColors.push('#00796B'); }
         if (cFacilSummer > 0)    { certsLabels.push('Facilitadores — Summer Job');     certsData.push(cFacilSummer);   certsColors.push('#8AAED6'); }
         if (cMentSummer > 0)     { certsLabels.push('Mentores — Summer Job');          certsData.push(cMentSummer);    certsColors.push('#375B95'); }
         if (cFacilCyber > 0)     { certsLabels.push('Facilitadores — Cyberthon');      certsData.push(cFacilCyber);    certsColors.push('#8AAED6'); }
@@ -2152,6 +2420,27 @@
             return groups;
         }
 
+        if (fObj.type === 'cissa-lab') {
+            const presKey = sheetNames.find(k => /lista.*presen|presen/i.test(normalize(k)));
+            if (presKey) (data[presKey] || []).forEach(row => { if (rowHasCertLink(row)) addRow('Participante', row); });
+            const facKey = sheetNames.find(k => /certificados facilitadores|certificados fac/i.test(normalize(k)));
+            if (facKey) (data[facKey] || []).forEach(row => { if (rowHasCertLink(row)) addRow('Facilitador', row); });
+            const menKey = sheetNames.find(k => /certificados mentores|certificados men/i.test(normalize(k)));
+            if (menKey) (data[menKey] || []).forEach(row => { if (rowHasCertLink(row)) addRow('Mentor', row); });
+            return groups;
+        }
+
+        if (fObj.type === 'cissa-journey') {
+            const presKey = sheetNames.find(k => /controle.*presen|presen/i.test(normalize(k)));
+            if (presKey) {
+                (data[presKey] || []).forEach(row => {
+                    const dirKey = Object.keys(row).find(k => /direito.*certif/i.test(normalize(k)));
+                    if (!dirKey || /sim/i.test(String(row[dirKey]||''))) addRow('Participante', row);
+                });
+            }
+            return groups;
+        }
+
         if (fObj.type === 'mulheres') {
             const key = sheetNames.find(k => /participante.*certif|certif.*participante|participante|certifi/i.test(normalize(k)));
             if (key) (data[key] || []).forEach(row => addRow('Participante', row));
@@ -2465,21 +2754,25 @@
             const ment  = countLinks(certM);
             const totalFile = alunosCerts + facil + ment;
 
-            const categoria = fObj.type === 'cyberthon'    ? 'Curta Duração'
-                            : fObj.type === 'hands-on'     ? 'Curta Duração'
-                            : fObj.type === 'mulheres'     ? 'Curta Duração'
-                            : fObj.type === 'summer-job'   ? 'Curta Duração'
-                            : fObj.type === 'masterclass'  ? 'Curta Duração'
+            const categoria = fObj.type === 'cyberthon'      ? 'Curta Duração'
+                            : fObj.type === 'hands-on'       ? 'Curta Duração'
+                            : fObj.type === 'mulheres'       ? 'Curta Duração'
+                            : fObj.type === 'summer-job'     ? 'Curta Duração'
+                            : fObj.type === 'masterclass'    ? 'Curta Duração'
+                            : fObj.type === 'cissa-lab'      ? 'Curta Duração'
+                            : fObj.type === 'cissa-journey'  ? 'Curta Duração'
                             : 'Outros';
 
             cursos.push({
                 label:       getDisplayName(fObj) || fObj.name,
                 tipo:        fObj.type,
-                tipoLabel:   fObj.type === 'cyberthon'   ? 'Cyberthon'
-                           : fObj.type === 'hands-on'    ? 'Hands On'
-                           : fObj.type === 'mulheres'    ? 'Mulheres em Ciber'
-                           : fObj.type === 'summer-job'  ? 'Summer Job'
-                           : fObj.type === 'masterclass' ? 'Masterclass'
+                tipoLabel:   fObj.type === 'cyberthon'      ? 'Cyberthon'
+                           : fObj.type === 'hands-on'       ? 'Hands On'
+                           : fObj.type === 'mulheres'       ? 'Mulheres em Ciber'
+                           : fObj.type === 'summer-job'     ? 'Summer Job'
+                           : fObj.type === 'masterclass'    ? 'Masterclass'
+                           : fObj.type === 'cissa-lab'      ? 'CISSA Lab'
+                           : fObj.type === 'cissa-journey'  ? 'CISSA Journey'
                            : 'Outros',
                 categoria,
                 ano:         fObj.year   || '—',
