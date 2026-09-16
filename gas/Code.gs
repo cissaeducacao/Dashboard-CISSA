@@ -5,7 +5,7 @@
 
 const ALLOWED_DOMAIN  = 'cesar.org.br';
 const DRIVE_FOLDER_ID = '12PLMU2UOgLUa_6szkmGW3MYVzshLeG8o';
-const ACTIVE_FOLDERS  = ['cyberthon', 'hands on', 'mulher', 'summer', 'masterclass', 'cissa lab', 'cissa journey'];
+const ACTIVE_FOLDERS  = ['cyberthon', 'hands on', 'mulher', 'summer', 'masterclass', 'cissa lab', 'cissa journey', 'sbseg'];
 
 // ── Ponto de entrada ─────────────────────────────────────────────────────────
 function doGet(e) {

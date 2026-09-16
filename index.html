@@ -617,6 +617,7 @@
         else if (sheetNamesLower.some(s => s.includes('mulher')) || fileName.toLowerCase().includes('mulher')) type = 'mulheres';
         else if (fileName.toLowerCase().includes('summer') || sheetNamesLower.some(s => s.includes('summer'))) type = 'summer-job';
         else if (sheetNamesLower.some(s => s.includes('diagn')) || fileName.toLowerCase().includes('hand')) type = 'hands-on';
+        else if (fileName.toLowerCase().includes('sbseg') || sheetNamesLower.some(s => s.includes('dados inscritos'))) type = 'sbseg';
         else if (sheetNamesLower.some(s => s.includes('banca') || s.includes('estudantes')) || fileName.toLowerCase().includes('cybe')) type = 'cyberthon';
 
         let year = "Desconhecido", month = "Desconhecido", day = "00", monthKey = "Desconhecido";
@@ -796,6 +797,7 @@
         let masterFiles     = dashFiles.filter(f => f.type === 'masterclass');
         let cissaLabFiles   = dashFiles.filter(f => f.type === 'cissa-lab');
         let cissaJourneyFiles = dashFiles.filter(f => f.type === 'cissa-journey');
+        let sbsegFiles      = dashFiles.filter(f => f.type === 'sbseg');
         let html = '';
 
         const buildMenu = (files, typeKey, title) => {
@@ -874,6 +876,7 @@
         html += buildMenu(masterFiles,      'masterclass',  'Masterclass');
         html += buildMenu(cissaLabFiles,    'cissalab',     'CISSA Lab');
         html += buildMenu(cissaJourneyFiles,'cissajourney', 'CISSA Journey');
+        html += buildMenu(sbsegFiles,       'sbseg',        'SBSeg');
 
         container.innerHTML = html;
         document.querySelectorAll('.project-btn.general').forEach(b => { if(!['btn-page-dash','btn-page-portfolio','btn-page-embrapii','btn-page-certificados'].includes(b.id)) b.classList.remove('active'); });
@@ -914,6 +917,7 @@
         else if (scope === 'masterclass_all')    filesToProcess = uploadedFiles.filter(f => f.type === 'masterclass');
         else if (scope === 'cissalab_all')       filesToProcess = uploadedFiles.filter(f => f.type === 'cissa-lab');
         else if (scope === 'cissajourney_all')   filesToProcess = uploadedFiles.filter(f => f.type === 'cissa-journey');
+        else if (scope === 'sbseg_all')          filesToProcess = uploadedFiles.filter(f => f.type === 'sbseg');
         else if (scope.startsWith('cyberthon_year_'))      filesToProcess = uploadedFiles.filter(f => f.type === 'cyberthon'     && f.year === scope.replace('cyberthon_year_', ''));
         else if (scope.startsWith('cyberthon_month_'))     filesToProcess = uploadedFiles.filter(f => f.type === 'cyberthon'     && f.monthKey === scope.replace('cyberthon_month_', ''));
         else if (scope.startsWith('handson_year_'))        filesToProcess = uploadedFiles.filter(f => f.type === 'hands-on'      && f.year === scope.replace('handson_year_', ''));
@@ -928,6 +932,8 @@
         else if (scope.startsWith('cissalab_month_'))      filesToProcess = uploadedFiles.filter(f => f.type === 'cissa-lab'     && f.monthKey === scope.replace('cissalab_month_', ''));
         else if (scope.startsWith('cissajourney_year_'))   filesToProcess = uploadedFiles.filter(f => f.type === 'cissa-journey' && f.year === scope.replace('cissajourney_year_', ''));
         else if (scope.startsWith('cissajourney_month_'))  filesToProcess = uploadedFiles.filter(f => f.type === 'cissa-journey' && f.monthKey === scope.replace('cissajourney_month_', ''));
+        else if (scope.startsWith('sbseg_year_'))          filesToProcess = uploadedFiles.filter(f => f.type === 'sbseg'         && f.year === scope.replace('sbseg_year_', ''));
+        else if (scope.startsWith('sbseg_month_'))         filesToProcess = uploadedFiles.filter(f => f.type === 'sbseg'         && f.monthKey === scope.replace('sbseg_month_', ''));
         else filesToProcess = uploadedFiles.filter(f => f.id === scope);
 
         // Levantamento files are cert-only — exclude from KPI/chart processing
@@ -943,6 +949,7 @@
         else if (scope === 'summerjob_all')  title = "GERAL (SUMMER JOB)";
         else if (scope === 'cissalab_all')   title = "GERAL (CISSA LAB)";
         else if (scope === 'cissajourney_all') title = "GERAL (CISSA JOURNEY)";
+        else if (scope === 'sbseg_all')        title = "GERAL (SBSEG)";
         else if (scope.startsWith('all_year_'))    title = "GERAL " + scope.replace('all_year_', '');
         else if (scope.startsWith('all_month_'))   { let [mm,yy]=scope.replace('all_month_','').split('_'); title="GERAL — "+monthNames[mm].toUpperCase()+" DE "+yy; }
         else if (scope.startsWith('cyberthon_year_'))  title = "CYBERTHON ANO: " + scope.replace('cyberthon_year_', '');
@@ -953,6 +960,8 @@
         else if (scope.startsWith('handson_month_'))   { let [mm,yy]=scope.replace('handson_month_','').split('_');   title="HANDS ON MÊS: "+monthNames[mm].toUpperCase()+" DE "+yy; }
         else if (scope.startsWith('mulheres_month_'))  { let [mm,yy]=scope.replace('mulheres_month_','').split('_');  title="MULHERES EM CIBERSEG. MÊS: "+monthNames[mm].toUpperCase()+" DE "+yy; }
         else if (scope.startsWith('summerjob_month_')) { let [mm,yy]=scope.replace('summerjob_month_','').split('_'); title="SUMMER JOB MÊS: "+monthNames[mm].toUpperCase()+" DE "+yy; }
+        else if (scope.startsWith('sbseg_year_'))      title = "SBSEG ANO: " + scope.replace('sbseg_year_', '');
+        else if (scope.startsWith('sbseg_month_'))     { let [mm,yy]=scope.replace('sbseg_month_','').split('_'); title="SBSEG MÊS: "+monthNames[mm].toUpperCase()+" DE "+yy; }
         else if (scope !== 'all') {
             let f = uploadedFiles.find(x => x.id === scope);
             if (f) {
@@ -1022,6 +1031,7 @@
         else if (currentScope === 'masterclass_all')    filesToProcess = uploadedFiles.filter(f => f.type === 'masterclass');
         else if (currentScope === 'cissalab_all')       filesToProcess = uploadedFiles.filter(f => f.type === 'cissa-lab');
         else if (currentScope === 'cissajourney_all')   filesToProcess = uploadedFiles.filter(f => f.type === 'cissa-journey');
+        else if (currentScope === 'sbseg_all')          filesToProcess = uploadedFiles.filter(f => f.type === 'sbseg');
         else if (currentScope.startsWith('cyberthon_year_'))      filesToProcess = uploadedFiles.filter(f => f.type === 'cyberthon'     && f.year === currentScope.replace('cyberthon_year_', ''));
         else if (currentScope.startsWith('cyberthon_month_'))     filesToProcess = uploadedFiles.filter(f => f.type === 'cyberthon'     && f.monthKey === currentScope.replace('cyberthon_month_', ''));
         else if (currentScope.startsWith('handson_year_'))        filesToProcess = uploadedFiles.filter(f => f.type === 'hands-on'      && f.year === currentScope.replace('handson_year_', ''));
@@ -1036,6 +1046,8 @@
         else if (currentScope.startsWith('cissalab_month_'))      filesToProcess = uploadedFiles.filter(f => f.type === 'cissa-lab'     && f.monthKey === currentScope.replace('cissalab_month_', ''));
         else if (currentScope.startsWith('cissajourney_year_'))   filesToProcess = uploadedFiles.filter(f => f.type === 'cissa-journey' && f.year === currentScope.replace('cissajourney_year_', ''));
         else if (currentScope.startsWith('cissajourney_month_'))  filesToProcess = uploadedFiles.filter(f => f.type === 'cissa-journey' && f.monthKey === currentScope.replace('cissajourney_month_', ''));
+        else if (currentScope.startsWith('sbseg_year_'))          filesToProcess = uploadedFiles.filter(f => f.type === 'sbseg'         && f.year === currentScope.replace('sbseg_year_', ''));
+        else if (currentScope.startsWith('sbseg_month_'))         filesToProcess = uploadedFiles.filter(f => f.type === 'sbseg'         && f.monthKey === currentScope.replace('sbseg_month_', ''));
         else filesToProcess = uploadedFiles.filter(f => f.id === currentScope);
 
         // getSheetData agora é global (definida acima de renderDashboard)
@@ -1196,7 +1208,7 @@
         }
 
         // ── KPIs e charts de engajamento (só na aba "ativos") ───────────────
-        let certsCyberthon = 0, certsHandsOn = 0, certsMulheres = 0, certsSummer = 0, certsMasterclass = 0, certsCissaLab = 0, certsCissaJourney = 0, cFacil = 0, cMent = 0;
+        let certsCyberthon = 0, certsHandsOn = 0, certsMulheres = 0, certsSummer = 0, certsMasterclass = 0, certsCissaLab = 0, certsCissaJourney = 0, certsSbseg = 0, cFacil = 0, cMent = 0;
         let recorrentes = 0;
         currentViewStudents.forEach(id => { if (globalStudentPresence[id] && globalStudentPresence[id].size > 1) recorrentes++; });
         let esperados = combinedInscricoes.length;
@@ -1270,9 +1282,10 @@
                 });
                 certsCissaJourney += certSet.size;
             }
+            else if (pType === 'sbseg') certsSbseg += alunosLinked.size;
             else certsHandsOn += alunosLinked.size;
         });
-        let totalCerts = certsCyberthon + certsHandsOn + certsMulheres + certsSummer + certsMasterclass + certsCissaLab + certsCissaJourney + cFacil + cMent;
+        let totalCerts = certsCyberthon + certsHandsOn + certsMulheres + certsSummer + certsMasterclass + certsCissaLab + certsCissaJourney + certsSbseg + cFacil + cMent;
 
         if (currentView === 'ativos') {
             let grid = document.getElementById('kpi-grid');
@@ -1289,7 +1302,7 @@
                         ${cMent  > 0 ? `<span>🧑‍💼 Mentores <b>${cMent}</b></span>`       : ''}
                     </div>
                 </div>`;
-            renderEngagement(filesToProcess, totalRealizados, recorrentes, certsCyberthon, certsHandsOn, certsMulheres, certsSummer, cFacil, cMent, certsMasterclass, certsCissaLab, certsCissaJourney);
+            renderEngagement(filesToProcess, totalRealizados, recorrentes, certsCyberthon, certsHandsOn, certsMulheres, certsSummer, cFacil, cMent, certsMasterclass, certsCissaLab, certsCissaJourney, certsSbseg);
         }
 
         let isCyber = pTypeGlobal === 'cyberthon';
@@ -1299,7 +1312,7 @@
 
         // ── Visibilidade dinâmica das abas ──────────────────────────────────
         const isMasterclass = pTypeGlobal === 'masterclass';
-        const hasPresenca = combinedPresenca.length > 0 || pTypeGlobal === 'hands-on' || pTypeGlobal === 'summer-job' || isMasterclass || pTypeGlobal === 'cissa-lab' || pTypeGlobal === 'cissa-journey';
+        const hasPresenca = combinedPresenca.length > 0 || pTypeGlobal === 'hands-on' || pTypeGlobal === 'summer-job' || isMasterclass || pTypeGlobal === 'cissa-lab' || pTypeGlobal === 'cissa-journey' || pTypeGlobal === 'sbseg';
         const isSummer    = pTypeGlobal === 'summer-job' || isMasterclass;
         document.getElementById('tab-geral').classList.toggle('hidden', isSummer);
         const hasReacao   = combinedReacao.length > 0;
@@ -1604,7 +1617,7 @@
         });
     }
 
-    function renderEngagement(filesToProcess, totalRealizados, recorrentes, certsCyberthon, certsHandsOn, certsMulheres, certsSummer, cFacil, cMent, certsMasterclass = 0, certsCissaLab = 0, certsCissaJourney = 0) {
+    function renderEngagement(filesToProcess, totalRealizados, recorrentes, certsCyberthon, certsHandsOn, certsMulheres, certsSummer, cFacil, cMent, certsMasterclass = 0, certsCissaLab = 0, certsCissaJourney = 0, certsSbseg = 0) {
         // Funil por edição — mais recente à esquerda
         const skFn = f => (parseInt(f.year)||0)*10000 + (parseInt(f.month)||0)*100 + (parseInt(f.day)||0);
         const sortedFiles = [...filesToProcess].sort((a, b) => skFn(b) - skFn(a));
@@ -1642,6 +1655,7 @@
                 fObj.type === 'masterclass'   ? '#7B5EA7' :
                 fObj.type === 'cissa-lab'     ? '#2B7A4B' :
                 fObj.type === 'cissa-journey' ? '#00796B' :
+                fObj.type === 'sbseg'         ? '#8B2346' :
                 '#D25600'
             );
 
@@ -1736,6 +1750,18 @@
                     const dirKey = Object.keys(r).find(k => /direito.*certif/i.test(normalize(k)));
                     if (dirKey && /sim/i.test(String(r[dirKey]||''))) certs++;
                 });
+            } else if (fObj.type === 'sbseg') {
+                // Inscrições: DADOS INSCRITOS
+                const inscSbseg = getSheetData(fObj.data, [/dados.*inscrit/i]) || getSheetData(fObj.data, [/inscrit/i]) || [];
+                inscritos[inscritos.length - 1] = inscSbseg.length || presData.length;
+                // Participações: coluna "Presença" = true
+                const PRES_VALS_SBG = new Set(['TRUE','SIM','VERDADEIRO','V','1','X','S']);
+                presData.forEach(r => {
+                    const pk = Object.keys(r).find(k => /presenca|presen/i.test(normalize(k)) && !/certif/i.test(normalize(k)));
+                    if (pk && PRES_VALS_SBG.has(String(r[pk]).toUpperCase().trim())) ativos++;
+                });
+                if (!ativos) ativos = presData.length;
+                certs = contarCertsPorLink([presData]);
             } else if (fObj.type === 'hands-on') {
                 ativos = presData.length;
                 // Certificados: links na lista de presença (coluna ao lado)
@@ -1876,6 +1902,7 @@
         if (certsMasterclass > 0)  { certsLabels.push('Masterclass');           certsData.push(certsMasterclass);  certsColors.push('#7B5EA7'); }
         if (certsCissaLab > 0)     { certsLabels.push('CISSA Lab');              certsData.push(certsCissaLab);     certsColors.push('#2B7A4B'); }
         if (certsCissaJourney > 0) { certsLabels.push('CISSA Journey');          certsData.push(certsCissaJourney); certsColors.push('#00796B'); }
+        if (certsSbseg > 0)        { certsLabels.push('SBSeg');                  certsData.push(certsSbseg);        certsColors.push('#8B2346'); }
         if (cFacilSummer > 0)    { certsLabels.push('Facilitadores — Summer Job');     certsData.push(cFacilSummer);   certsColors.push('#8AAED6'); }
         if (cMentSummer > 0)     { certsLabels.push('Mentores — Summer Job');          certsData.push(cMentSummer);    certsColors.push('#375B95'); }
         if (cFacilCyber > 0)     { certsLabels.push('Facilitadores — Cyberthon');      certsData.push(cFacilCyber);    certsColors.push('#8AAED6'); }
@@ -2761,6 +2788,7 @@
                             : fObj.type === 'masterclass'    ? 'Curta Duração'
                             : fObj.type === 'cissa-lab'      ? 'Curta Duração'
                             : fObj.type === 'cissa-journey'  ? 'Curta Duração'
+                            : fObj.type === 'sbseg'          ? 'Curta Duração'
                             : 'Outros';
 
             cursos.push({
@@ -2773,6 +2801,7 @@
                            : fObj.type === 'masterclass'    ? 'Masterclass'
                            : fObj.type === 'cissa-lab'      ? 'CISSA Lab'
                            : fObj.type === 'cissa-journey'  ? 'CISSA Journey'
+                           : fObj.type === 'sbseg'          ? 'SBSeg'
                            : 'Outros',
                 categoria,
                 ano:         fObj.year   || '—',
