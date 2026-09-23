@@ -91,7 +91,7 @@
         </div>
         <div id="engagement-content" class="hidden">
             <div class="chart-grid">
-                <div class="chart-card full-width" style="height:470px;"><h3>Funil de Participação por Edição</h3><div id="funnel-type-filters" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;"></div><div style="flex:1;overflow-x:auto;overflow-y:hidden;min-height:0;"><div id="funnel-scroll-inner" style="position:relative;height:100%;min-width:100%;"><canvas id="c-engage-funnel"></canvas></div></div></div>
+                <div class="chart-card full-width"><h3>Funil de Participação por Edição</h3><div id="funnel-type-filters" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;"></div><div id="funnel-scroll-outer" style="overflow-x:hidden;overflow-y:auto;max-height:520px;min-height:120px;"><div id="funnel-scroll-inner" style="position:relative;width:100%;"><canvas id="c-engage-funnel"></canvas></div></div></div>
                 <div class="chart-card" style="height:380px;"><h3>Certificados por Programa</h3><div class="canvas-wrapper"><canvas id="c-engage-certs"></canvas></div></div>
                 <div id="card-daily-presence" class="chart-card full-width hidden" style="height:420px;">
                     <h3>Presença por Dia</h3>
@@ -271,6 +271,7 @@
             </div>
             <div class="chart-card full-width">
                 <h3>Certificados por Ação / Curso</h3>
+                <div id="embrapii-bar-filters" style="display:none;flex-direction:column;gap:5px;margin-bottom:10px;"></div>
                 <div id="embrapii-bar-scroll" style="overflow-y:auto;overflow-x:hidden;max-height:520px;min-height:200px;"><canvas id="c-embrapii-bar"></canvas></div>
             </div>
             <div class="chart-card full-width" style="min-height:auto; margin-top:20px;">

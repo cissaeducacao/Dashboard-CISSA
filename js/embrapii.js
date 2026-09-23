@@ -4,6 +4,86 @@
         { nome: 'EAD Cyber para Executivos',      categoria: 'Curta Duração',  inicio: '2024' }
     ];
 
+    const _EBAR_TIPO_COLORS = {
+        'cyberthon':    '#375B95',
+        'hands-on':     '#D25600',
+        'mulheres':     'rgba(55,91,149,0.52)',
+        'summer-job':   'rgba(210,86,0,0.52)',
+        'masterclass':  '#232323',
+        'cissa-lab':    '#888888',
+        'cissa-journey':'rgba(55,91,149,0.78)',
+        'sbseg':        'rgba(210,86,0,0.78)'
+    };
+    const _EBAR_TIPO_LABELS = {
+        'cyberthon':'Cyberthon','hands-on':'Hands On','mulheres':'Mulheres em Ciber',
+        'summer-job':'Summer Job','masterclass':'Masterclass','cissa-lab':'CISSA Lab',
+        'cissa-journey':'CISSA Journey','sbseg':'SBSeg'
+    };
+
+    function _buildEmbrapiiBarChart(filtered) {
+        if (charts['c-embrapii-bar']) { charts['c-embrapii-bar'].destroy(); delete charts['c-embrapii-bar']; }
+        if (!filtered.length) return;
+        const isDark  = document.body.classList.contains('dark-mode');
+        const textColor = isDark ? '#E8E8E8' : '#232323';
+        const gridColor = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)';
+        const barLabels = filtered.map(c => c.label);
+        const typesInBar = [...new Set(filtered.map(c => c.tipo))].filter(t => _EBAR_TIPO_LABELS[t]);
+        const barDatasets = typesInBar.map(tipo => ({
+            label: _EBAR_TIPO_LABELS[tipo] || tipo,
+            data: filtered.map(c => c.tipo === tipo ? c.certs : NaN),
+            backgroundColor: _EBAR_TIPO_COLORS[tipo] || '#375B95',
+            borderRadius: 4,
+            barThickness: 'flex'
+        }));
+        const rowH   = 28;
+        const chartH = Math.max(200, filtered.length * rowH + 60);
+        const barCanvas = document.getElementById('c-embrapii-bar');
+        const barScroll = document.getElementById('embrapii-bar-scroll');
+        if (barCanvas) { barCanvas.style.height = chartH + 'px'; barCanvas.style.width = '100%'; barCanvas.height = chartH; }
+        if (barScroll) barScroll.style.height = Math.min(chartH, 520) + 'px';
+        charts['c-embrapii-bar'] = new Chart(barCanvas, {
+            type: 'bar',
+            data: { labels: barLabels, datasets: barDatasets },
+            options: {
+                indexAxis: 'y', responsive: true, maintainAspectRatio: false, animation: { duration: 0 },
+                plugins: {
+                    legend: { display: true, position: 'top', labels: { color: textColor, boxWidth: 12, font: { size: 11, family: "'DM Sans',sans-serif" }, padding: 14 } },
+                    tooltip: { callbacks: { label: c => ` ${isNaN(c.raw) ? '' : c.raw + ' certificados'}` } },
+                    datalabels: { color: textColor, font: { weight: 'bold', size: 10, family: "'DM Sans',sans-serif" }, anchor: 'end', align: 'end', offset: 3, formatter: v => (v > 0 && !isNaN(v)) ? v : '' }
+                },
+                scales: {
+                    y: { ticks: { color: textColor, font: { size: 10 } }, grid: { color: gridColor } },
+                    x: { ticks: { color: textColor }, grid: { color: gridColor }, beginAtZero: true }
+                }
+            }
+        });
+    }
+
+    function _applyEmbrapiiFilters() {
+        const d = window._embrapiiBarData;
+        if (!d) return;
+        const filtered = d.allCursos.filter(c => {
+            const typeOk = d.typeFilter === 'all' || c.tipo === d.typeFilter;
+            const yearOk = d.yearFilter === 'all' || String(c.ano) === String(d.yearFilter);
+            return typeOk && yearOk;
+        });
+        _buildEmbrapiiBarChart(filtered);
+    }
+
+    function applyEmbrapiiTypeFilter(type, btn) {
+        document.querySelectorAll('.ebar-type-chip').forEach(c => c.classList.remove('active'));
+        if (btn) btn.classList.add('active');
+        if (window._embrapiiBarData) window._embrapiiBarData.typeFilter = type;
+        _applyEmbrapiiFilters();
+    }
+
+    function applyEmbrapiiYearFilter(year, btn) {
+        document.querySelectorAll('.ebar-year-chip').forEach(c => c.classList.remove('active'));
+        if (btn) btn.classList.add('active');
+        if (window._embrapiiBarData) window._embrapiiBarData.yearFilter = year;
+        _applyEmbrapiiFilters();
+    }
+
     function renderEmbrapii(allFiles) {
         const isDark = document.body.classList.contains('dark-mode');
         const textColor = isDark ? '#E8E8E8' : '#232323';
@@ -153,52 +233,41 @@
             });
         }
 
-        // ── Barras horizontais: certs por ação/curso (ordenado decrescente) ──
-        const barSorted = [...cursos].sort((a, b) => b.certs - a.certs);
-        const barLabels = barSorted.map(c => c.label);
-        const barData   = barSorted.map(c => c.certs);
-        const barColors = barSorted.map(c => {
-            if (c.tipo === 'cyberthon')     return '#375B95';
-            if (c.tipo === 'hands-on')      return '#D25600';
-            if (c.tipo === 'mulheres')      return '#F37623';
-            if (c.tipo === 'summer-job')    return '#5A83C4';
-            if (c.tipo === 'masterclass')   return '#7B5EA7';
-            if (c.tipo === 'cissa-lab')     return '#2B7A4B';
-            if (c.tipo === 'cissa-journey') return '#00796B';
-            if (c.tipo === 'sbseg')         return '#8B2346';
-            return '#888';
+        // ── Barras horizontais: mais recente → mais antigo, com filtros ──────
+        const barSorted = [...cursos].sort((a, b) => {
+            const ya = parseInt(a.ano)||0, yb = parseInt(b.ano)||0;
+            if (ya !== yb) return yb - ya;
+            return (parseInt(b.mes)||0) - (parseInt(a.mes)||0);
         });
 
-        if (barLabels.length > 0) {
-            const rowH = 32;
-            const chartH = Math.max(200, barLabels.length * rowH + 40);
-            const barCanvas = document.getElementById('c-embrapii-bar');
-            const barScroll = document.getElementById('embrapii-bar-scroll');
-            if (barCanvas) { barCanvas.style.height = chartH + 'px'; barCanvas.style.width = '100%'; barCanvas.height = chartH; }
-            if (barScroll) barScroll.style.height = Math.min(chartH, 520) + 'px';
-            charts['c-embrapii-bar'] = new Chart(barCanvas, {
-                type: 'bar',
-                data: { labels: barLabels, datasets: [{ label: 'Certificados', data: barData, backgroundColor: barColors, borderRadius: 4, barThickness: Math.min(24, rowH - 8) }] },
-                options: {
-                    indexAxis: 'y',
-                    responsive: true, maintainAspectRatio: false,
-                    animation: { duration: 0 },
-                    plugins: {
-                        legend: { display: false },
-                        tooltip: { callbacks: { label: c => ` ${c.raw} certificados` } },
-                        datalabels: {
-                            color: textColor, font: { weight: 'bold', size: 10, family: "'DM Sans',sans-serif" },
-                            anchor: 'end', align: 'end', offset: 3,
-                            formatter: v => v > 0 ? v : ''
-                        }
-                    },
-                    scales: {
-                        y: { ticks: { color: textColor, font: { size: 10 } }, grid: { color: gridColor } },
-                        x: { ticks: { color: textColor }, grid: { color: gridColor }, beginAtZero: true }
-                    }
-                }
-            });
+        window._embrapiiBarData = { allCursos: barSorted, typeFilter: 'all', yearFilter: 'all' };
+
+        const filtersBarEl = document.getElementById('embrapii-bar-filters');
+        if (filtersBarEl) {
+            const typesPresent = [...new Set(barSorted.map(c => c.tipo))].filter(t => _EBAR_TIPO_LABELS[t]);
+            const yearsPresent = [...new Set(barSorted.map(c => c.ano).filter(y => y && y !== '—' && y !== 'Desconhecido'))].sort((a,b) => b-a);
+            const chipB = 'style="background:#375B95;color:#fff;"';
+            const chipD = 'style="background:#232323;color:#fff;"';
+            let html = '';
+            if (typesPresent.length > 1) {
+                html += `<div style="display:flex;flex-wrap:wrap;gap:5px;align-items:center;">`;
+                html += `<span style="font-size:0.68rem;color:var(--text-muted);margin-right:2px;">Tipo</span>`;
+                html += `<button class="funnel-chip ebar-type-chip active" ${chipB} onclick="applyEmbrapiiTypeFilter('all',this)">Todos</button>`;
+                html += typesPresent.map(t => `<button class="funnel-chip ebar-type-chip" ${chipB} onclick="applyEmbrapiiTypeFilter('${t}',this)">${_EBAR_TIPO_LABELS[t]}</button>`).join('');
+                html += `</div>`;
+            }
+            if (yearsPresent.length > 1) {
+                html += `<div style="display:flex;flex-wrap:wrap;gap:5px;align-items:center;">`;
+                html += `<span style="font-size:0.68rem;color:var(--text-muted);margin-right:2px;">Ano</span>`;
+                html += `<button class="funnel-chip ebar-year-chip active" ${chipD} onclick="applyEmbrapiiYearFilter('all',this)">Todos</button>`;
+                html += yearsPresent.map(y => `<button class="funnel-chip ebar-year-chip" ${chipD} onclick="applyEmbrapiiYearFilter('${y}',this)">${y}</button>`).join('');
+                html += `</div>`;
+            }
+            filtersBarEl.style.display = html ? 'flex' : 'none';
+            filtersBarEl.innerHTML = html;
         }
+
+        _buildEmbrapiiBarChart(barSorted);
 
         // ── Tabela de detalhamento ───────────────────────────────────────────
         const monthNamesShort = { '01':'Jan','02':'Fev','03':'Mar','04':'Abr','05':'Mai','06':'Jun','07':'Jul','08':'Ago','09':'Set','10':'Out','11':'Nov','12':'Dez' };

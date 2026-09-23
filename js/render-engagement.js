@@ -1,7 +1,7 @@
     const _FUNNEL_TYPE_COLORS = {
-        'cyberthon':'#375B95','hands-on':'#D25600','mulheres':'#F37623',
-        'summer-job':'#5A83C4','masterclass':'#7B5EA7','cissa-lab':'#2B7A4B',
-        'cissa-journey':'#00796B','sbseg':'#8B2346'
+        'cyberthon':'#375B95','hands-on':'#D25600','mulheres':'#375B95',
+        'summer-job':'#D25600','masterclass':'#375B95','cissa-lab':'#D25600',
+        'cissa-journey':'#375B95','sbseg':'#232323'
     };
     const _FUNNEL_TYPE_NAMES = {
         'cyberthon':'Cyberthon','hands-on':'Hands On','mulheres':'Mulheres em Ciber',
@@ -15,22 +15,29 @@
         const isDark = document.body.classList.contains('dark-mode');
         const gridColor = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)';
         const textColor = isDark ? '#E8E8E8' : '#232323';
-        const barThickness = Math.max(18, Math.min(40, Math.floor(320 / labels.length)));
+        const rowH  = Math.max(48, Math.min(72, Math.floor(400 / labels.length)));
+        const chartH = labels.length * rowH + 60;
         const funnelInner = document.getElementById('funnel-scroll-inner');
         if (funnelInner) {
-            const outerW = funnelInner.parentElement.clientWidth || 600;
-            funnelInner.style.width = Math.max(outerW, labels.length * 80) + 'px';
-            funnelInner.parentElement.scrollLeft = 0;
+            funnelInner.style.height = chartH + 'px';
+            funnelInner.parentElement.scrollTop = 0;
         }
+        const canvas = document.getElementById('c-engage-funnel');
+        if (canvas) { canvas.style.height = chartH + 'px'; canvas.height = chartH; }
+
+        const MAX_LABEL_LEN = 28;
+        const truncLabel = s => s.length > MAX_LABEL_LEN ? s.slice(0, MAX_LABEL_LEN - 1) + '…' : s;
+
         let funnelPinned = null;
-        charts['c-engage-funnel'] = new Chart(document.getElementById('c-engage-funnel'), {
+        charts['c-engage-funnel'] = new Chart(canvas, {
             type: 'bar',
-            data: { labels, datasets: [
-                { label: 'Inscrições',    data: inscritos,     backgroundColor: '#5A83C4', barThickness },
-                { label: 'Participações', data: participacoes, backgroundColor: '#375B95', barThickness },
-                { label: 'Certificados',  data: certificados,  backgroundColor: '#232323', barThickness }
+            data: { labels: labels.map(truncLabel), datasets: [
+                { label: 'Inscrições',    data: inscritos,     backgroundColor: 'rgba(55,91,149,0.38)', maxBarThickness: 18 },
+                { label: 'Participações', data: participacoes, backgroundColor: '#375B95',              maxBarThickness: 18 },
+                { label: 'Certificados',  data: certificados,  backgroundColor: '#D25600',              maxBarThickness: 18 }
             ]},
             options: {
+                indexAxis: 'y',
                 responsive: true, maintainAspectRatio: false,
                 interaction: { mode: 'index', intersect: false },
                 onClick(evt, elements, chart) {
@@ -43,13 +50,15 @@
                     chart.update('none');
                 },
                 plugins: {
-                    legend: { labels: { color: textColor } },
-                    datalabels: { color: '#fff', font: { weight: 'bold', size: 10 }, formatter: v => v > 0 ? v : '' },
-                    tooltip: { mode: 'index', intersect: false }
+                    legend: { position: 'top', labels: { color: textColor, boxWidth: 12, font: { size: 11, family: "'DM Sans',sans-serif" } } },
+                    datalabels: { color: '#fff', font: { weight: 'bold', size: 9 }, anchor: 'end', align: 'end', offset: 2, formatter: v => v > 0 ? v : '' },
+                    tooltip: { mode: 'index', intersect: false,
+                        callbacks: { title: (items) => fullLabels[items[0]?.dataIndex] || items[0]?.label || '' }
+                    }
                 },
                 scales: {
-                    x: { ticks: { color: textColor, maxRotation: 35, font: { size: 11 } }, grid: { color: gridColor } },
-                    y: { ticks: { color: textColor }, grid: { color: gridColor }, beginAtZero: true }
+                    y: { ticks: { color: textColor, font: { size: 10 } }, grid: { color: 'transparent' } },
+                    x: { ticks: { color: textColor }, grid: { color: gridColor }, beginAtZero: true }
                 }
             },
             plugins: [{
@@ -66,9 +75,8 @@
                 }
             }]
         });
-        // Tooltip ao passar sobre labels truncadas no eixo X
+        // Tooltip ao passar sobre labels truncadas no eixo Y
         (function() {
-            const canvas = document.getElementById('c-engage-funnel');
             const ch = charts['c-engage-funnel'];
             let tip = document.getElementById('_funnelLabelTip');
             if (!tip) {
@@ -80,12 +88,12 @@
             canvas.addEventListener('mousemove', function(e) {
                 const rect = canvas.getBoundingClientRect();
                 const mx = e.clientX - rect.left, my = e.clientY - rect.top;
-                const xScale = ch.scales.x;
-                if (!xScale || my < ch.chartArea.bottom) { tip.style.display = 'none'; return; }
-                const step = xScale.width / Math.max(labels.length, 1);
+                const yScale = ch.scales.y;
+                if (!yScale || mx > ch.chartArea.left) { tip.style.display = 'none'; return; }
                 let found = -1;
                 for (let i = 0; i < labels.length; i++) {
-                    if (Math.abs(mx - xScale.getPixelForValue(i)) < step / 1.5) { found = i; break; }
+                    const py = yScale.getPixelForValue(i);
+                    if (Math.abs(my - py) < rowH / 1.5) { found = i; break; }
                 }
                 if (found >= 0 && fullLabels[found] !== labels[found]) {
                     tip.textContent = fullLabels[found];
@@ -98,14 +106,17 @@
         })();
     }
 
-    function applyFunnelFilter(type, btn) {
-        document.querySelectorAll('.funnel-chip').forEach(c => c.classList.remove('active'));
-        if (btn) btn.classList.add('active');
+    function _applyFunnelFilters() {
         const fd = window._funnelAllData;
         if (!fd) return;
-        const idxs = type === 'all'
-            ? fd.sortedFiles.map((_, i) => i)
-            : fd.sortedFiles.reduce((acc, f, i) => { if (f.type === type) acc.push(i); return acc; }, []);
+        const typeF = window._funnelTypeFilter || 'all';
+        const yearF = window._funnelYearFilter || 'all';
+        const idxs = fd.sortedFiles.reduce((acc, f, i) => {
+            const typeOk = typeF === 'all' || f.type === typeF;
+            const yearOk = yearF === 'all' || String(f.year) === String(yearF);
+            if (typeOk && yearOk) acc.push(i);
+            return acc;
+        }, []);
         _buildFunnelChart(
             idxs.map(i => fd.labels[i]),
             idxs.map(i => fd.fullLabels[i]),
@@ -116,6 +127,20 @@
         );
     }
 
+    function applyFunnelFilter(type, btn) {
+        document.querySelectorAll('.funnel-type-chip').forEach(c => c.classList.remove('active'));
+        if (btn) btn.classList.add('active');
+        window._funnelTypeFilter = type;
+        _applyFunnelFilters();
+    }
+
+    function applyFunnelYearFilter(year, btn) {
+        document.querySelectorAll('.funnel-year-chip').forEach(c => c.classList.remove('active'));
+        if (btn) btn.classList.add('active');
+        window._funnelYearFilter = year;
+        _applyFunnelFilters();
+    }
+
     function getDailyPresenceData(fObj) {
         const data = fObj.data;
         const PRESENT = new Set(['1','TRUE','SIM','VERDADEIRO','V','X','S','PRESENT','P']);
@@ -124,9 +149,11 @@
         // Detecta colunas de dia: "08/04", "DIA 1", "DIA_2", "DIA (08/04)", "Dia 08/04", "D1"
         const isDateCol = k => {
             const kt = k.trim();
-            return /^\d{1,2}[\/\-\.]\d{1,2}(\/\d{2,4})?$/.test(kt)   // "08/04", "08/04/2025"
-                || /\bdia[\s_]*[\d\(]/i.test(kt)                        // "DIA 1", "DIA_2", "DIA (08/04)"
-                || /^d\d+$/i.test(kt);                                  // "D1", "D2"
+            return /^\d{1,2}[\/\-\.]\d{1,2}(\/\d{2,4})?(\s.*)?$/.test(kt)  // "08/04", "08/04/2025", "09/09 (Seg)"
+                || /\bdia[\s_]*[\d\(]/i.test(kt)                              // "DIA 1", "DIA_2", "DIA (08/04)"
+                || /^d\d+$/i.test(kt)                                         // "D1", "D2"
+                || /\bsemana[\s_]*\d/i.test(kt)                               // "Semana 1", "Semana_2"
+                || /\b\d{1,2}[\/\-\.]\d{1,2}(\/\d{2,4})?\b/.test(kt);       // data embutida: "Presença 09/09"
         };
 
         if (fObj.type === 'cissa-journey') {
@@ -185,14 +212,18 @@
                 }
             }
 
-            // Fallback final: coluna booleana única ("PRESENÇA" = TRUE/FALSE)
+            // Fallback final: coluna booleana ou numérica ("PRESENÇA" = TRUE/FALSE ou número de dias)
             if (dayKeys.length === 0) {
                 const presKey = allCols.find(k => {
                     const nk = normalize(k);
                     return /presen/i.test(nk) && !/nome|cpf|email|matricula|certif/i.test(nk);
                 });
                 if (presKey) {
-                    const count = presRows.filter(r => PRESENT.has(String(r[presKey] || '').toUpperCase().trim())).length;
+                    const count = presRows.filter(r => {
+                        const val = String(r[presKey] || '').toUpperCase().trim();
+                        const num = parseFloat(val);
+                        return PRESENT.has(val) || (!isNaN(num) && num > 0);
+                    }).length;
                     return { dayKeys: ['Sessão'], dailyPresent: [count], daily80plus: [count], total: presRows.length, threshold: 1.0, singleSession: true };
                 }
             }
@@ -224,8 +255,11 @@
         if (!card) return;
         if (charts['c-daily-presence']) { charts['c-daily-presence'].destroy(); delete charts['c-daily-presence']; }
 
-        // Apenas para eventos individuais (uma edição por vez)
-        if (filesToProcess.length !== 1) { card.classList.add('hidden'); return; }
+        // Apenas para eventos individuais de tipos com suporte a presença por dia
+        const DAILY_PRESENCE_TYPES = new Set(['cyberthon', 'hands-on', 'cissa-journey']);
+        if (filesToProcess.length !== 1 || !DAILY_PRESENCE_TYPES.has(filesToProcess[0].type)) {
+            card.classList.add('hidden'); return;
+        }
 
         const d = getDailyPresenceData(filesToProcess[0]);
         if (!d) { card.classList.add('hidden'); return; }
@@ -296,7 +330,7 @@
     }
 
     function renderEngagement(filesToProcess, totalRealizados, recorrentes, certsCyberthon, certsHandsOn, certsMulheres, certsSummer, cFacil, cMent, certsMasterclass = 0, certsCissaLab = 0, certsCissaJourney = 0, certsSbseg = 0) {
-        // Funil por edição — mais recente à esquerda
+        // Funil — mais recente primeiro
         const skFn = f => (parseInt(f.year)||0)*10000 + (parseInt(f.month)||0)*100 + (parseInt(f.day)||0);
         const sortedFiles = [...filesToProcess].sort((a, b) => skFn(b) - skFn(a));
         const labels = [], fullLabels = [], inscritos = [], participacoes = [], certificados = [], bgColors = [];
@@ -326,16 +360,7 @@
             }
             labels.push(title);
             fullLabels.push(fullTitle);
-            bgColors.push(
-                fObj.type === 'cyberthon'     ? '#375B95' :
-                fObj.type === 'mulheres'      ? '#F37623' :
-                fObj.type === 'summer-job'    ? '#5A83C4' :
-                fObj.type === 'masterclass'   ? '#7B5EA7' :
-                fObj.type === 'cissa-lab'     ? '#2B7A4B' :
-                fObj.type === 'cissa-journey' ? '#00796B' :
-                fObj.type === 'sbseg'         ? '#8B2346' :
-                '#D25600'
-            );
+            bgColors.push('#375B95');
 
             // ── Mulheres: tudo vem da aba de participantes/certificados ────────
             if (fObj.type === 'mulheres') {
@@ -474,21 +499,37 @@
         ['c-engage-funnel','c-engage-certs','c-daily-presence'].forEach(id => { if(charts[id]) { charts[id].destroy(); delete charts[id]; } });
         renderDailyPresenceChart(filesToProcess);
 
-        // Armazena dados completos para filtro por tipo
+        // Armazena dados e reseta estado dos filtros
         window._funnelAllData = { sortedFiles, labels, fullLabels, inscritos, participacoes, certificados, bgColors };
+        window._funnelTypeFilter = 'all';
+        window._funnelYearFilter = 'all';
 
-        // Chips de filtro por tipo de formação
+        // Chips de filtro por tipo e por ano
         const filtersEl = document.getElementById('funnel-type-filters');
         if (filtersEl) {
-            const typesPresent = [...new Set(sortedFiles.map(f => f.type))];
+            const typesPresent = [...new Set(sortedFiles.map(f => f.type))].filter(t => _FUNNEL_TYPE_NAMES[t]);
+            const yearsPresent = [...new Set(sortedFiles.map(f => f.year).filter(y => y && y !== 'Desconhecido' && y !== '—'))].sort((a, b) => b - a);
+            const chipBase = 'style="background:#375B95;color:#fff;"';
+            const chipDark = 'style="background:#232323;color:#fff;"';
+            let html = '';
             if (typesPresent.length > 1) {
-                filtersEl.style.display = 'flex';
-                filtersEl.innerHTML = `<button class="funnel-chip active" data-type="all" onclick="applyFunnelFilter('all',this)" style="background:var(--blue-dark);color:#fff;">Todos</button>`
-                    + typesPresent.map(t => `<button class="funnel-chip" data-type="${t}" onclick="applyFunnelFilter('${t}',this)" style="background:${_FUNNEL_TYPE_COLORS[t]||'#888'};color:#fff;">${_FUNNEL_TYPE_NAMES[t]||t}</button>`).join('');
-            } else {
-                filtersEl.style.display = 'none';
-                filtersEl.innerHTML = '';
+                html += `<div style="display:flex;flex-wrap:wrap;gap:5px;align-items:center;margin-bottom:5px;">`;
+                html += `<span style="font-size:0.68rem;color:var(--text-muted);margin-right:2px;">Tipo</span>`;
+                html += `<button class="funnel-chip funnel-type-chip active" ${chipBase} onclick="applyFunnelFilter('all',this)">Todos</button>`;
+                html += typesPresent.map(t => `<button class="funnel-chip funnel-type-chip" ${chipBase} onclick="applyFunnelFilter('${t}',this)">${_FUNNEL_TYPE_NAMES[t]}</button>`).join('');
+                html += `</div>`;
             }
+            if (yearsPresent.length > 1) {
+                html += `<div style="display:flex;flex-wrap:wrap;gap:5px;align-items:center;">`;
+                html += `<span style="font-size:0.68rem;color:var(--text-muted);margin-right:2px;">Ano</span>`;
+                html += `<button class="funnel-chip funnel-year-chip active" ${chipDark} onclick="applyFunnelYearFilter('all',this)">Todos</button>`;
+                html += yearsPresent.map(y => `<button class="funnel-chip funnel-year-chip" ${chipDark} onclick="applyFunnelYearFilter('${y}',this)">${y}</button>`).join('');
+                html += `</div>`;
+            }
+            filtersEl.style.display = html ? 'flex' : 'none';
+            filtersEl.style.flexDirection = 'column';
+            filtersEl.style.gap = '0';
+            filtersEl.innerHTML = html;
         }
 
         _buildFunnelChart(labels, fullLabels, inscritos, participacoes, certificados, bgColors);
@@ -503,18 +544,20 @@
         });
 
         const certsLabels = [], certsData = [], certsColors = [];
-        if (certsCyberthon > 0)    { certsLabels.push('Alunos — Cyberthon');    certsData.push(certsCyberthon);    certsColors.push('#375B95'); }
-        if (certsHandsOn > 0)      { certsLabels.push('Alunos — Hands On');    certsData.push(certsHandsOn);      certsColors.push('#D25600'); }
-        if (certsMulheres > 0)     { certsLabels.push('Mulheres em Ciber');     certsData.push(certsMulheres);     certsColors.push('#F37623'); }
-        if (certsSummer > 0)       { certsLabels.push('Alunos — Summer Job');   certsData.push(certsSummer);       certsColors.push('#5A83C4'); }
-        if (certsMasterclass > 0)  { certsLabels.push('Masterclass');           certsData.push(certsMasterclass);  certsColors.push('#7B5EA7'); }
-        if (certsCissaLab > 0)     { certsLabels.push('CISSA Lab');              certsData.push(certsCissaLab);     certsColors.push('#2B7A4B'); }
-        if (certsCissaJourney > 0) { certsLabels.push('CISSA Journey');          certsData.push(certsCissaJourney); certsColors.push('#00796B'); }
-        if (certsSbseg > 0)        { certsLabels.push('SBSeg');                  certsData.push(certsSbseg);        certsColors.push('#8B2346'); }
-        if (cFacilSummer > 0)    { certsLabels.push('Facilitadores — Summer Job');     certsData.push(cFacilSummer);   certsColors.push('#8AAED6'); }
-        if (cMentSummer > 0)     { certsLabels.push('Mentores — Summer Job');          certsData.push(cMentSummer);    certsColors.push('#375B95'); }
-        if (cFacilCyber > 0)     { certsLabels.push('Facilitadores — Cyberthon');      certsData.push(cFacilCyber);    certsColors.push('#8AAED6'); }
-        if (cMentCyber > 0)      { certsLabels.push('Mentores — Cyberthon');           certsData.push(cMentCyber);     certsColors.push('#232323'); }
+        const _CP = ['#375B95','#D25600','#232323','#888888'];
+        let _ci = 0;
+        if (certsCyberthon > 0)    { certsLabels.push('Alunos — Cyberthon');          certsData.push(certsCyberthon);    certsColors.push(_CP[_ci++ % 4]); }
+        if (certsHandsOn > 0)      { certsLabels.push('Alunos — Hands On');           certsData.push(certsHandsOn);      certsColors.push(_CP[_ci++ % 4]); }
+        if (certsMulheres > 0)     { certsLabels.push('Mulheres em Ciber');            certsData.push(certsMulheres);     certsColors.push(_CP[_ci++ % 4]); }
+        if (certsSummer > 0)       { certsLabels.push('Alunos — Summer Job');          certsData.push(certsSummer);       certsColors.push(_CP[_ci++ % 4]); }
+        if (certsMasterclass > 0)  { certsLabels.push('Masterclass');                  certsData.push(certsMasterclass);  certsColors.push(_CP[_ci++ % 4]); }
+        if (certsCissaLab > 0)     { certsLabels.push('CISSA Lab');                    certsData.push(certsCissaLab);     certsColors.push(_CP[_ci++ % 4]); }
+        if (certsCissaJourney > 0) { certsLabels.push('CISSA Journey');                certsData.push(certsCissaJourney); certsColors.push(_CP[_ci++ % 4]); }
+        if (certsSbseg > 0)        { certsLabels.push('SBSeg');                        certsData.push(certsSbseg);        certsColors.push(_CP[_ci++ % 4]); }
+        if (cFacilSummer > 0)    { certsLabels.push('Facilitadores — Summer Job');     certsData.push(cFacilSummer);      certsColors.push(_CP[_ci++ % 4]); }
+        if (cMentSummer > 0)     { certsLabels.push('Mentores — Summer Job');          certsData.push(cMentSummer);       certsColors.push(_CP[_ci++ % 4]); }
+        if (cFacilCyber > 0)     { certsLabels.push('Facilitadores — Cyberthon');      certsData.push(cFacilCyber);       certsColors.push(_CP[_ci++ % 4]); }
+        if (cMentCyber > 0)      { certsLabels.push('Mentores — Cyberthon');           certsData.push(cMentCyber);        certsColors.push(_CP[_ci++ % 4]); }
         if (certsData.length > 0) {
             const isDarkC = document.body.classList.contains('dark-mode');
             const textColorC = isDarkC ? '#E8E8E8' : '#232323';

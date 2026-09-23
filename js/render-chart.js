@@ -7,7 +7,7 @@
         const gridColor = isDark ? '#333333' : '#d1d1d1';
         const isPie = type === 'pie';
 
-        const colorBlue = '#375B95';
+        const colorBlue   = '#375B95';
         const colorOrange = '#D25600';
 
         let bgColors, borderColors;

@@ -99,7 +99,7 @@
         // azul escuro = 100% | azul claro = boa freq | laranja = baixa | preto = não participaram
         const ABANDON_COLORS = {
             '100%':   '#375B95',
-            'boa':    '#5A83C4',
+            'boa':    '#888888',
             'baixa':  '#D25600',
             'nao':    '#232323'
         };
