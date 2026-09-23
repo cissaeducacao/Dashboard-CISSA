@@ -5,12 +5,14 @@
 
     function switchPage(pageId) {
         document.querySelectorAll('.page-section').forEach(p => p.classList.add('hidden'));
+
         document.getElementById('page-' + pageId).classList.remove('hidden');
-        document.querySelectorAll('#btn-page-dash, #btn-page-portfolio, #btn-page-embrapii, #btn-page-certificados').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('#btn-page-dash, #btn-page-portfolio, #btn-page-embrapii, #btn-page-certificados, #btn-page-inscritos').forEach(b => b.classList.remove('active'));
         document.getElementById('btn-page-' + pageId).classList.add('active');
         if (pageId === 'dash')          setTimeout(() => { Object.values(charts).forEach(c => c.resize()); }, 100);
         if (pageId === 'embrapii')      renderEmbrapii(uploadedFiles);
         if (pageId === 'certificados')  renderCertificadosPage();
+        if (pageId === 'inscritos')     renderInscritos(uploadedFiles.filter(f => f.type !== 'levantamento'));
     }
 
     function toggleAccordion(id, btnElement) {

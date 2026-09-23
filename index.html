@@ -46,6 +46,7 @@
         <button class="project-btn general active" id="btn-page-dash" onclick="switchPage('dash')">Dashboard Interativo</button>
         <button class="project-btn general" id="btn-page-portfolio" onclick="switchPage('portfolio')">Portfólio Educacional</button>
         <button class="project-btn general" id="btn-page-embrapii" onclick="switchPage('embrapii')">Acompanhamento Embrapii</button>
+        <button class="project-btn general" id="btn-page-inscritos" onclick="switchPage('inscritos')">Base de Inscritos</button>
         <h2 class="section-title">Análise de Eventos</h2>
         <div id="dynamic-editions" style="margin-top: 6px;"></div>
         <button class="project-btn theme-toggle" onclick="exportAuditCSV()" style="margin-top:8px;border-color:#555;">↓ Exportar Auditoria</button>
@@ -298,6 +299,68 @@
             </div>
         </div>
     </div>
+
+    <div id="page-inscritos" class="page-section hidden">
+        <div class="header-title">
+            <h1>Base de Inscritos</h1>
+            <p style="color:var(--text-muted);font-size:0.9rem;margin-top:4px;">Dados cadastrais dos inscritos em todos os eventos</p>
+        </div>
+        <div style="padding: 0 20px 30px;">
+            <div class="chart-card full-width">
+                <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;margin-bottom:16px;">
+                    <div style="display:flex;flex-direction:column;gap:4px;">
+                        <label style="font-size:0.75rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.04em;">Projeto</label>
+                        <select id="inscritos-filter-proj" onchange="_applyInscritosFilters()" style="padding:6px 10px;border:1px solid var(--border);border-radius:6px;background:var(--card);color:var(--text-main);font-family:'DM Sans',sans-serif;font-size:0.88rem;">
+                            <option value="">Todos os Projetos</option>
+                        </select>
+                    </div>
+                    <div style="display:flex;flex-direction:column;gap:4px;">
+                        <label style="font-size:0.75rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.04em;">Ano</label>
+                        <select id="inscritos-filter-ano" onchange="_applyInscritosFilters()" style="padding:6px 10px;border:1px solid var(--border);border-radius:6px;background:var(--card);color:var(--text-main);font-family:'DM Sans',sans-serif;font-size:0.88rem;">
+                            <option value="">Todos os Anos</option>
+                        </select>
+                    </div>
+                    <div style="display:flex;flex-direction:column;gap:4px;">
+                        <label style="font-size:0.75rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.04em;">Mês</label>
+                        <select id="inscritos-filter-mes" onchange="_applyInscritosFilters()" style="padding:6px 10px;border:1px solid var(--border);border-radius:6px;background:var(--card);color:var(--text-main);font-family:'DM Sans',sans-serif;font-size:0.88rem;">
+                            <option value="">Todos os Meses</option>
+                        </select>
+                    </div>
+                    <div style="display:flex;gap:8px;margin-left:auto;align-self:flex-end;">
+                        <button onclick="exportInscritosCSV()" style="padding:6px 14px;border:1.5px solid var(--blue-dark);border-radius:6px;background:var(--blue-dark);color:#fff;font-family:'DM Sans',sans-serif;font-size:0.88rem;font-weight:600;cursor:pointer;">↓ Exportar CSV</button>
+                        <button id="inscritos-copy-emails-btn" onclick="copyInscritosEmails()" style="padding:6px 14px;border:1.5px solid var(--border);border-radius:6px;background:var(--card);color:var(--text-main);font-family:'DM Sans',sans-serif;font-size:0.88rem;font-weight:600;cursor:pointer;">Copiar E-mails</button>
+                    </div>
+                </div>
+                <div id="inscritos-count" style="font-size:0.82rem;color:var(--text-muted);margin-bottom:10px;"></div>
+                <div style="overflow-x:auto;">
+                    <div style="overflow-y:auto;max-height:560px;">
+                        <table id="inscritos-table" style="width:100%;border-collapse:separate;border-spacing:0;font-size:0.83rem;font-family:'DM Sans',sans-serif;">
+                            <thead>
+                                <tr>
+                                    <th style="position:sticky;top:0;z-index:2;background:var(--card);padding:8px 10px;text-align:right;box-shadow:0 2px 0 var(--border);white-space:nowrap;color:var(--text-muted);font-size:0.75rem;">#</th>
+                                    <th style="position:sticky;top:0;z-index:2;background:var(--card);padding:8px 10px;text-align:left;box-shadow:0 2px 0 var(--border);white-space:nowrap;min-width:140px;">Nome</th>
+                                    <th style="position:sticky;top:0;z-index:2;background:var(--card);padding:8px 10px;text-align:left;box-shadow:0 2px 0 var(--border);white-space:nowrap;">CPF</th>
+                                    <th style="position:sticky;top:0;z-index:2;background:var(--card);padding:8px 10px;text-align:left;box-shadow:0 2px 0 var(--border);white-space:nowrap;min-width:160px;">Email</th>
+                                    <th style="position:sticky;top:0;z-index:2;background:var(--card);padding:8px 10px;text-align:left;box-shadow:0 2px 0 var(--border);white-space:nowrap;">Gênero</th>
+                                    <th style="position:sticky;top:0;z-index:2;background:var(--card);padding:8px 10px;text-align:left;box-shadow:0 2px 0 var(--border);white-space:nowrap;">Etnia</th>
+                                    <th style="position:sticky;top:0;z-index:2;background:var(--card);padding:8px 10px;text-align:left;box-shadow:0 2px 0 var(--border);white-space:nowrap;min-width:120px;">Escolaridade</th>
+                                    <th style="position:sticky;top:0;z-index:2;background:var(--card);padding:8px 10px;text-align:left;box-shadow:0 2px 0 var(--border);white-space:nowrap;">Idade</th>
+                                    <th style="position:sticky;top:0;z-index:2;background:var(--card);padding:8px 10px;text-align:left;box-shadow:0 2px 0 var(--border);white-space:nowrap;">Estado</th>
+                                    <th style="position:sticky;top:0;z-index:2;background:var(--card);padding:8px 10px;text-align:left;box-shadow:0 2px 0 var(--border);white-space:nowrap;">Cidade</th>
+                                    <th style="position:sticky;top:0;z-index:2;background:var(--card);padding:8px 10px;text-align:left;box-shadow:0 2px 0 var(--border);white-space:nowrap;">PCD</th>
+                                    <th style="position:sticky;top:0;z-index:2;background:var(--card);padding:8px 10px;text-align:left;box-shadow:0 2px 0 var(--border);white-space:nowrap;">Tipo PCD</th>
+                                    <th style="position:sticky;top:0;z-index:2;background:var(--card);padding:8px 10px;text-align:left;box-shadow:0 2px 0 var(--border);white-space:nowrap;">Projeto</th>
+                                    <th style="position:sticky;top:0;z-index:2;background:var(--card);padding:8px 10px;text-align:left;box-shadow:0 2px 0 var(--border);white-space:nowrap;min-width:160px;">Edição</th>
+                                </tr>
+                            </thead>
+                            <tbody id="inscritos-tbody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div id="page-certificados" class="page-section hidden">
         <div class="header-title">
             <h1>Certificados Emitidos</h1>
@@ -340,6 +403,7 @@
 <script src="js/render-eval.js"></script>
 <script src="js/masterclass.js"></script>
 <script src="js/embrapii.js"></script>
+<script src="js/inscritos.js"></script>
 <script src="js/certificados.js"></script>
 <script src="js/auditoria.js"></script>
 <script src="js/dashboard.js"></script>
