@@ -107,6 +107,7 @@
 
         html += buildMenu(cyberFiles,       'cyberthon',    'Cyberthon');
         html += buildMenu(handsFiles,       'handson',      'Hands On');
+        html += buildMenu(mulheresFiles,    'mulheres',     'Mulheres em Cibersegurança');
         html += buildMenu(summerFiles,      'summerjob',    'Summer Job');
         html += buildMenu(masterFiles,      'masterclass',  'Masterclass');
         html += buildMenu(cissaLabFiles,    'cissalab',     'CISSA Lab');
