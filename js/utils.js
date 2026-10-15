@@ -149,7 +149,9 @@
         let fileId = 'file_' + Date.now() + Math.floor(Math.random() * 1000);
         let fileDisplayName = fileName.replace(/\.[^/.]+$/, "").replace(/Cybethon/g, 'Cyberthon');
 
-        uploadedFiles.push({ id: fileId, name: fileDisplayName, type: type, data: sheets, year, month, day, monthKey });
+        const newFile = { id: fileId, name: fileDisplayName, type, data: sheets, year, month, day, monthKey };
+        newFile.issues = validateFile(newFile);
+        uploadedFiles.push(newFile);
     }
 
     // ── Carga horária por arquivo (1 arquivo = 1 edição) ────────────────────
@@ -215,5 +217,206 @@
             .replace(/_(\d{2})_(\d{4})/g, '/$1/$2')
             .replace(/\s{2,}/g, ' ')
             .trim();
+    }
+    // ────────────────────────────────────────────────────────────────────────
+
+    // ── Schema de validação por tipo (atualizar quando templates chegarem) ────
+    // Cada entrada: { sheets: [ { label, match, required, cols: [ { label, match|matchFn, required } ] } ] }
+    const FILE_VALIDATION_SCHEMA = {
+        'cyberthon': { sheets: [
+            { label: 'Inscrições / Estudantes', match: /estudantes|inscri/i, required: true },
+            { label: 'Lista de Presença',        match: /presen/i,           required: true,
+              cols: [
+                { label: 'Nome',            match: /^nome/i,       required: true  },
+                { label: 'CPF',             match: /^cpf$/i,       required: false },
+                { label: 'Coluna de dia/presença', matchFn: cols => cols.some(_isDateCol) || cols.some(c => /presen/i.test(normalize(c)) && !/nome|cpf|email|certif/i.test(normalize(c))), required: false },
+              ]},
+            { label: 'Avaliação de Reação', match: /reac|reaç|feedback|satisf/i, required: false },
+        ]},
+        'hands-on': { sheets: [
+            { label: 'Formulário de Inscrição', match: /inscri|respostas|form|diagn/i, required: true },
+            { label: 'Lista de Presença', match: /presen/i, required: true,
+              cols: [
+                { label: 'Nome', match: /^nome/i, required: true },
+                { label: 'CPF',  match: /^cpf$/i, required: false },
+                { label: 'Colunas PRESENÇA DIA N', matchFn: cols => cols.some(_isDateCol), required: false },
+              ]},
+        ]},
+        'mulheres': { sheets: [
+            { label: 'Respostas do formulário', match: /respostas|form|inscri/i, required: true },
+        ]},
+        'summer-job': { sheets: [
+            { label: 'Indicados',        match: /indicad/i, required: true },
+            { label: 'Lista de Presença', match: /presen/i, required: true,
+              cols: [
+                { label: 'Frequência ou Total de Presença', matchFn: cols => cols.some(c => /frequ[eê]ncia|total.*pres|pres.*total/i.test(normalize(c))), required: true },
+              ]},
+        ]},
+        'masterclass': { sheets: [
+            { label: 'Aba de dados (Página1)', match: /pagina|bruto|dados/i, required: false },
+        ]},
+        'cissa-lab': { sheets: [
+            { label: 'Dados Participantes ou Estudantes', match: /dados.*(participante|estudante|aluno)|indicad/i, required: true },
+            { label: 'Lista de Presença', match: /presen/i, required: true,
+              cols: [
+                { label: 'Coluna de Presença', matchFn: cols => cols.some(c => /presen/i.test(normalize(c)) && !/certif/i.test(normalize(c))), required: true },
+              ]},
+        ]},
+        'cissa-journey': { sheets: [
+            { label: 'Controle de Presença', match: /controle.*presen|presen/i, required: true,
+              cols: [
+                { label: 'Nome',           match: /nome/i, required: true },
+                { label: 'Colunas DD/MM',  matchFn: cols => cols.some(c => /^\d{2}\/\d{2}$/.test(c)), required: true },
+              ]},
+        ]},
+        'sbseg': { sheets: [
+            { label: 'Dados Inscritos',   match: /dados.*inscrit|inscrit/i, required: true },
+            { label: 'Lista de Presença', match: /presen/i,                 required: true,
+              cols: [
+                { label: 'Coluna de Presença (True/False)', matchFn: cols => cols.some(c => /presenca|presen/i.test(normalize(c)) && !/certif/i.test(normalize(c))), required: true },
+              ]},
+        ]},
+    };
+
+    function validateFile(fObj) {
+        const schema = FILE_VALIDATION_SCHEMA[fObj.type];
+        if (!schema) return [];
+        const issues = [];
+        schema.sheets.forEach(sd => {
+            const sheetKey = Object.keys(fObj.data).find(k => sd.match.test(normalize(k)));
+            if (!sheetKey) {
+                if (sd.required) issues.push({ sev: 'error', msg: `Aba "${sd.label}" não encontrada` });
+                return;
+            }
+            const rows = fObj.data[sheetKey];
+            if (!rows || !rows.length) {
+                if (sd.required) issues.push({ sev: 'warn', msg: `Aba "${sd.label}" está vazia` });
+                return;
+            }
+            const cols = Object.keys(rows[0] || {});
+            (sd.cols || []).forEach(cd => {
+                const found = cd.matchFn ? cd.matchFn(cols) : cols.some(c => cd.match.test(normalize(c)));
+                if (!found && cd.required)
+                    issues.push({ sev: 'warn', msg: `Coluna "${cd.label}" não encontrada em "${sd.label}"` });
+            });
+        });
+        return issues;
+    }
+    // ────────────────────────────────────────────────────────────────────────
+
+    // ── Detecção canônica de coluna de dia (presença por dia) ────────────────
+    function _isDateCol(k) {
+        const kt = k.trim();
+        return /^\d{1,2}[\/\-\.]\d{1,2}(\/\d{2,4})?(\s.*)?$/.test(kt)
+            || /\bdia[\s_]*[\d\(]/i.test(kt)
+            || /^d\d+$/i.test(kt)
+            || /\bsemana[\s_]*\d/i.test(kt)
+            || /\b\d{1,2}[\/\-\.]\d{1,2}(\/\d{2,4})?\b/.test(kt);
+    }
+
+    // ── Aba canônica de inscrições por tipo de arquivo ───────────────────────
+    function getInscritosSheet(fObj) {
+        const d = fObj.data, t = fObj.type;
+        if (t === 'summer-job')
+            return getSheetData(d, [/indicad/]) || getSheetData(d, [/estudante/, /aluno/, /inscri/]) || [];
+        if (t === 'cissa-lab')
+            return getSheetData(d, [/dados.*(participante|aluno|estudante)/i]) || getSheetData(d, [/indicad/]) || getSheetData(d, [/inscri/]) || [];
+        if (t === 'cissa-journey')
+            return getSheetData(d, [/inscri/, /estudante/, /aluno/]) || [];
+        if (t === 'sbseg')
+            return getSheetData(d, [/dados.*inscrit/i, /inscrit/i, /estudante/, /aluno/]) || [];
+        return getSheetData(d, [/estudantes/, /alunos/, /inscri/, /respostas/, /^form/])
+            || Object.entries(d)
+                .filter(([k, v]) => Array.isArray(v) && v.length > 1
+                    && !/banca|presen|certif|mentor|facilit|reac|avalia|diagn|espera|indicad|pitch|script|autocrat/i.test(normalize(k)))
+                .sort(([, a], [, b]) => b.length - a.length)
+                .map(([, v]) => v)[0]
+            || [];
+    }
+
+    // ── Linhas canônicas de participantes ativos (para contagens e recorrência)
+    // Cada tipo usa a mesma lógica de detecção aqui e em _getParticipantSet.
+    // Divergência intencional: summer-job usa lista de presença aqui (contagem),
+    // mas _getParticipantSet retorna __allParticipated (cruzamento impossível).
+    function _getActivePresenceRows(fObj) {
+        if (fObj.type === 'masterclass') return [];
+        if (fObj.type === 'mulheres') {
+            return getSheetData(fObj.data, [/participante.*certif|certif.*participante|participante|certifi/]) || [];
+        }
+        if (fObj.type === 'cissa-lab') {
+            const presSheet = getSheetData(fObj.data, [/presen/i]) || [];
+            if (!presSheet.length) return getInscritosSheet(fObj);
+            const PRESENT_CL = new Set(['TRUE','SIM','VERDADEIRO','V','1','X','S']);
+            const allColsCL = Object.keys(presSheet[0] || {});
+            const presColCL = allColsCL.find(k => /presen/i.test(normalize(k)) && !/certif/i.test(normalize(k)));
+            if (!presColCL) return presSheet;
+            return presSheet.filter(r => PRESENT_CL.has(String(r[presColCL] || '').toUpperCase().trim()));
+        }
+
+        const PRESENT = new Set(['TRUE','SIM','VERDADEIRO','V','1','X','S']);
+        const presSheet = getSheetData(fObj.data, [/presen|frequen/i]) || [];
+        if (!presSheet.length) return getInscritosSheet(fObj);
+
+        if (fObj.type === 'summer-job') {
+            return presSheet.filter(row => {
+                const fk = Object.keys(row).find(k => /frequ[eê]ncia|frequencia/i.test(normalize(k)));
+                const tk = Object.keys(row).find(k => /total.*pres|pres.*total/i.test(normalize(k)));
+                if (fk) { const p = parseFloat(String(row[fk]).replace('%', '').replace(',', '.')); return !isNaN(p) && p > 0; }
+                if (tk) { const t = parseFloat(String(row[tk]).replace(',', '.')); return !isNaN(t) && t > 0; }
+                return true;
+            });
+        }
+
+        if (fObj.type === 'cissa-journey') {
+            const allCols = Object.keys(presSheet[0] || {});
+            const dayCols = allCols.filter(k => /^\d{2}\/\d{2}$/.test(k));
+            const isPresent = val => {
+                const s = String(val || '').toUpperCase().trim();
+                if (PRESENT.has(s)) return true;
+                return /^\d+(\.\d+)?$/.test(s) && parseFloat(s) > 0;
+            };
+            if (dayCols.length > 0)
+                return presSheet.filter(r => dayCols.some(dk => isPresent(r[dk])));
+            return presSheet.filter(r => {
+                const tk = Object.keys(r).find(k => /total.*presen/i.test(normalize(k)));
+                if (tk) return parseInt(r[tk]) > 0;
+                return Object.values(r).some(v => PRESENT.has(String(v).toUpperCase().trim()));
+            });
+        }
+
+        if (fObj.type === 'hands-on') {
+            const allCols = Object.keys(presSheet[0] || {});
+            const dayCols = allCols.filter(_isDateCol);
+            if (!dayCols.length) return presSheet;
+            return presSheet.filter(r => dayCols.some(k => PRESENT.has(String(r[k] || '').toUpperCase().trim())));
+        }
+
+        // cyberthon, sbseg e outros: qualquer linha com ao menos uma coluna de presença ativa
+        const allCols = Object.keys(presSheet[0] || {});
+        const isPresCol = k => {
+            const nk = normalize(k);
+            return (/presenca|presen/i.test(nk) && !/certif/i.test(nk))
+                || /\bdia\b/i.test(nk)
+                || /^\d{1,2}[\/\-\.]\d{1,2}/.test(k.trim());
+        };
+        const presCols = allCols.filter(isPresCol);
+        if (!presCols.length) return presSheet;
+        return presSheet.filter(r => presCols.some(k => PRESENT.has(String(r[k] || '').toUpperCase().trim())));
+    }
+
+    // ── Contagem canônica de participantes ───────────────────────────────────
+    function getParticipantCount(fObj) {
+        if (fObj.type === 'masterclass') return getMasterclassMetrics(fObj).partic;
+        if (fObj.type === 'mulheres') {
+            const certSheet = getSheetData(fObj.data, [/participante.*certif|certif.*participante|participante|certifi/]) || [];
+            const cpfSet = new Set();
+            certSheet.forEach(row => {
+                const cpfKey = Object.keys(row).find(k => /cpf/i.test(normalize(k)));
+                if (cpfKey && row[cpfKey] && String(row[cpfKey]).trim() !== '')
+                    cpfSet.add(String(row[cpfKey]).replace(/\D/g, '').trim());
+            });
+            return cpfSet.size || certSheet.length;
+        }
+        return _getActivePresenceRows(fObj).length;
     }
     // ────────────────────────────────────────────────────────────────────────

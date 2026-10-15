@@ -20,27 +20,6 @@
         return key !== undefined ? String(row[key] ?? '').trim() : '';
     }
 
-    function _getInscSheet(fObj) {
-        const d = fObj.data;
-        const t = fObj.type;
-        if (t === 'summer-job')
-            return getSheetData(d, [/indicad/]) || getSheetData(d, [/estudante/, /aluno/, /inscri/]) || [];
-        if (t === 'cissa-lab')
-            return getSheetData(d, [/dados.*(participante|aluno)/i, /indicad/]) || getSheetData(d, [/inscri/]) || [];
-        if (t === 'cissa-journey')
-            return getSheetData(d, [/inscri/, /estudante/, /aluno/]) || [];
-        if (t === 'sbseg')
-            return getSheetData(d, [/dados.*inscrit/i, /inscrit/i, /estudante/, /aluno/]) || [];
-        // cyberthon, hands-on, mulheres, masterclass, default
-        return getSheetData(d, [/estudantes/, /alunos/, /inscri/, /respostas/, /^form/])
-            || Object.entries(d)
-                .filter(([k,v]) => Array.isArray(v) && v.length > 1
-                    && !/banca|presen|certif|mentor|facilit|reac|avalia|diagn|espera|indicad|pitch|script|autocrat/i.test(normalize(k)))
-                .sort(([,a],[,b]) => b.length - a.length)
-                .map(([,v]) => v)[0]
-            || [];
-    }
-
     function _calcIdade(dataNasc) {
         if (!dataNasc) return '';
         const m = String(dataNasc).match(/(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{2,4})/);
@@ -59,14 +38,106 @@
         return (parseInt(fObj.year) || 0) * 10000 + (parseInt(fObj.month) || 0) * 100 + (parseInt(fObj.day) || 0);
     }
 
+    // Tipos onde estar na lista de inscrição = participou (sem aba de presença cruzável)
+    // summer-job: INDICADOS usa e-mail pessoal, LISTA DE PRESENÇA usa e-mail institucional → impossível casar
+    const _ALWAYS_PARTICIPATED = new Set(['mulheres', 'masterclass', 'summer-job']);
+
+    function _getParticipantSet(fObj) {
+        // Para tipos sem aba de presença, retorna sentinela especial (Set vazio com flag)
+        if (_ALWAYS_PARTICIPATED.has(fObj.type)) {
+            const s = new Set(); s.__allParticipated = true; return s;
+        }
+
+        const data = fObj.data;
+        const PRESENT = new Set(['1','TRUE','SIM','VERDADEIRO','V','X','S','PRESENT','P']);
+
+        // Acha todas as abas com "presença" ou "frequência"
+        const presSheets = Object.keys(data).filter(k => /presen|frequen/i.test(normalize(k)));
+        if (!presSheets.length) return null;
+
+        // Prefere aba com coluna CPF (aba estruturada) sobre resposta de Form (timestamp)
+        let presKey = presSheets.find(k => {
+            const rows = data[k];
+            if (!rows || !rows.length) return false;
+            return Object.keys(rows[0] || {}).some(col => /^cpf$/i.test(normalize(col)));
+        }) || presSheets[0];
+
+        if (!data[presKey] || !data[presKey].length) return null;
+        const presRows = data[presKey];
+        const firstRow = presRows[0] || {};
+        const allCols = Object.keys(firstRow);
+
+        const participants = new Set();
+        const addRow = row => {
+            const ids = getIdsFromRow(row);
+            ids.cpfs.forEach(v => participants.add('cpf:' + v));
+            ids.emails.forEach(v => participants.add('email:' + v));
+            ids.nomes.forEach(v => participants.add('nome:' + v));
+            ids.baseNomes.forEach(v => participants.add('bn:' + v));
+        };
+
+        // Resposta de Form (tem "Carimbo de data/hora" ou "Timestamp"): todos os respondentes = presentes
+        const isFormResponse = allCols.some(c => /carimbo|timestamp/i.test(normalize(c)));
+        if (isFormResponse) {
+            presRows.forEach(addRow);
+            return participants;
+        }
+
+        let dayCols = fObj.type === 'cissa-journey'
+            ? allCols.filter(k => /^\d{2}\/\d{2}$/.test(k))
+            : allCols.filter(_isDateCol);
+
+        // Quando não há colunas de data: busca TODAS colunas de presença (inclui PRESENÇA DO PARTICIP_1/2/3)
+        const presCols = dayCols.length === 0
+            ? allCols.filter(k => { const nk = normalize(k); return /presen/i.test(nk) && !/nome|cpf|email|matricula|certif/i.test(nk); })
+            : [];
+
+        // Apenas booleanos e inteiros puros (exclui strings de data como "2026-01-15" e datas seriais Excel)
+        const isPresent = val => {
+            const s = String(val || '').toUpperCase().trim();
+            if (PRESENT.has(s)) return true;
+            return /^\d+(\.\d+)?$/.test(s) && parseFloat(s) > 0;
+        };
+
+        presRows.forEach(row => {
+            let participated = false;
+            if (dayCols.length > 0) {
+                participated = dayCols.some(dk => isPresent(row[dk]));
+            } else if (presCols.length > 0) {
+                participated = presCols.some(pc => isPresent(row[pc]));
+            } else {
+                participated = true; // aba estruturada sem colunas detectáveis → todos presentes
+            }
+            if (!participated) return;
+            addRow(row);
+        });
+        return participants;
+    }
+
+    function _matchParticipou(inscRow, partSet) {
+        if (!partSet) return '';
+        if (partSet.__allParticipated) return 'Sim';
+        // Usa cleanId para todos — igual à forma que getIdsFromRow armazena no Set
+        const cpf   = cleanId(inscRow.cpf);
+        const email = cleanId(inscRow.email);
+        const nome  = cleanId(inscRow.nome);
+        if (cpf && partSet.has('cpf:' + cpf)) return 'Sim';
+        if (email && partSet.has('email:' + email)) return 'Sim';
+        if (nome && partSet.has('nome:' + nome)) return 'Sim';
+        const nParts = normalize(inscRow.nome).replace(/[^a-z0-9 ]/g, '').trim().split(/\s+/).filter(x => x.length > 2);
+        if (nParts.length >= 2 && partSet.has('bn:' + nParts[0] + nParts[1])) return 'Sim';
+        return 'Não';
+    }
+
     function buildInscritosDB(allFiles) {
         const sorted = [...allFiles].sort((a, b) => _inscDateKey(b) - _inscDateKey(a));
         const rows = [];
         sorted.forEach(fObj => {
-            const sheet = _getInscSheet(fObj);
+            const sheet = getInscritosSheet(fObj);
             if (!sheet.length) return;
             const tipoLabel = _INSC_TIPO_LABEL[fObj.type] || fObj.type;
             const edicao    = getDisplayName(fObj) || fObj.name;
+            const partSet   = _getParticipantSet(fObj);
 
             sheet.forEach(r => {
                 const nome  = _inscFindVal(r, [/^nome/i, /nome.completo/i, /nome.estudante/i]);
@@ -91,10 +162,8 @@
                 const dataNasc    = _inscFindVal(r, [/data.*nasc/i, /nasc.*data/i, /^nasc/i]);
                 const idade = idadeDireto || _calcIdade(dataNasc);
 
-                rows.push({
-                    nome,
-                    cpf,
-                    email,
+                const partial = {
+                    nome, cpf, email,
                     genero:       _inscFindVal(r, [/^g[eê]nero$/i, /^sexo$/i, /g[eê]nero/i, /sexo/i]),
                     etnia:        _inscFindVal(r, [/ra[cç]a/i, /etnia/i, /cor.*pele/i, /cor.ra[cç]a/i]),
                     escolaridade: _inscFindVal(r, [/escolaridade/i, /instruca/i, /grau.*estudo/i, /forma[cç][aã]o.*acad/i]),
@@ -109,7 +178,9 @@
                     ano:          fObj.year  || '',
                     mes:          fObj.month || '',
                     fileId:       fObj.id
-                });
+                };
+                partial.participou = _matchParticipou(partial, partSet);
+                rows.push(partial);
             });
         });
         return rows;
@@ -118,7 +189,6 @@
     function renderInscritos(allFiles) {
         _inscritosDB = buildInscritosDB(allFiles);
 
-        // Populate project filter
         const projSel = document.getElementById('inscritos-filter-proj');
         const anoSel  = document.getElementById('inscritos-filter-ano');
         const mesSel  = document.getElementById('inscritos-filter-mes');
@@ -146,11 +216,13 @@
         const proj = document.getElementById('inscritos-filter-proj')?.value || '';
         const ano  = document.getElementById('inscritos-filter-ano')?.value  || '';
         const mes  = document.getElementById('inscritos-filter-mes')?.value  || '';
+        const part = document.getElementById('inscritos-filter-part')?.value || '';
 
         _inscFiltrado = _inscritosDB.filter(r => {
-            if (proj && r.projeto !== proj) return false;
-            if (ano  && r.ano    !== ano)   return false;
-            if (mes  && r.mes    !== mes)   return false;
+            if (proj && r.projeto    !== proj) return false;
+            if (ano  && r.ano        !== ano)  return false;
+            if (mes  && r.mes        !== mes)  return false;
+            if (part && r.participou !== part) return false;
             return true;
         });
 
@@ -173,7 +245,10 @@
 
         const isDark = document.body.classList.contains('dark-mode');
         const rowOdd = isDark ? 'background:rgba(255,255,255,0.04)' : 'background:rgba(55,91,149,0.04)';
-        tbody.innerHTML = shown.map((r, i) => `<tr style="${i%2===0?rowOdd:''}">
+        tbody.innerHTML = shown.map((r, i) => {
+            const partColor = r.participou === 'Sim' ? 'color:#2e7d32;font-weight:600;'
+                : r.participou === 'Não' ? 'color:#b71c1c;font-weight:600;' : '';
+            return `<tr style="${i%2===0?rowOdd:''}">
             <td style="padding:6px 10px;border-bottom:1px solid var(--border);text-align:right;color:var(--text-muted);font-size:0.75rem;white-space:nowrap;">${start + i + 1}</td>
             <td style="padding:6px 10px;border-bottom:1px solid var(--border);white-space:nowrap;">${esc(r.nome)}</td>
             <td style="padding:6px 10px;border-bottom:1px solid var(--border);white-space:nowrap;">${esc(r.cpf)}</td>
@@ -188,7 +263,9 @@
             <td style="padding:6px 10px;border-bottom:1px solid var(--border);">${esc(r.tipoPcd)}</td>
             <td style="padding:6px 10px;border-bottom:1px solid var(--border);white-space:nowrap;">${esc(r.projeto)}</td>
             <td style="padding:6px 10px;border-bottom:1px solid var(--border);white-space:nowrap;">${esc(r.edicao)}</td>
-        </tr>`).join('');
+            <td style="padding:6px 10px;border-bottom:1px solid var(--border);text-align:center;${partColor}">${esc(r.participou)}</td>
+        </tr>`;
+        }).join('');
 
         const btnStyle = 'padding:4px 12px;border:1px solid var(--border);border-radius:5px;background:var(--card);color:var(--text-main);font-family:"DM Sans",sans-serif;font-size:0.82rem;cursor:pointer;';
         const info = total === 0 ? 'Nenhum registro encontrado'
@@ -216,8 +293,8 @@
 
     function exportInscritosCSV() {
         if (!_inscFiltrado.length) { alert('Nenhum dado para exportar.'); return; }
-        const headers = ['Nome','CPF','Email','Gênero','Etnia','Escolaridade','Idade','Estado','Cidade','PCD','Tipo PCD','Projeto','Edição'];
-        const fields  = ['nome','cpf','email','genero','etnia','escolaridade','idade','estado','cidade','pcd','tipoPcd','projeto','edicao'];
+        const headers = ['Nome','CPF','Email','Gênero','Etnia','Escolaridade','Idade','Estado','Cidade','PCD','Tipo PCD','Projeto','Edição','Participou'];
+        const fields  = ['nome','cpf','email','genero','etnia','escolaridade','idade','estado','cidade','pcd','tipoPcd','projeto','edicao','participou'];
         const csvVal  = v => '"' + String(v||'').replace(/"/g,'""') + '"';
         const lines   = [headers.map(csvVal).join(',')];
         _inscFiltrado.forEach(r => lines.push(fields.map(f => csvVal(r[f])).join(',')));

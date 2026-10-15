@@ -9,7 +9,7 @@
         document.getElementById('page-' + pageId).classList.remove('hidden');
         document.querySelectorAll('#btn-page-dash, #btn-page-portfolio, #btn-page-embrapii, #btn-page-certificados, #btn-page-inscritos').forEach(b => b.classList.remove('active'));
         document.getElementById('btn-page-' + pageId).classList.add('active');
-        if (pageId === 'dash')          setTimeout(() => { Object.values(charts).forEach(c => c.resize()); }, 100);
+        if (pageId === 'dash')          setTimeout(() => { Object.values(charts).forEach(c => { try { if (c.canvas && c.canvas.isConnected) c.resize(); } catch(e) {} }); }, 100);
         if (pageId === 'embrapii')      renderEmbrapii(uploadedFiles);
         if (pageId === 'certificados')  renderCertificadosPage();
         if (pageId === 'inscritos')     renderInscritos(uploadedFiles.filter(f => f.type !== 'levantamento'));
@@ -71,7 +71,13 @@
                     ? `Cyberthon ${f.year}`
                     : extractTitle(f.name) || f.name;
                 const label = `${ord} — ${tema}`;
-                menuHtml += `<button class="sub-btn" id="btn-${f.id}" onclick="switchScope('${f.id}')" title="${f.name}">- ${label}</button>`;
+                const _errs  = (f.issues || []).filter(i => i.sev === 'error');
+                const _warns = (f.issues || []).filter(i => i.sev === 'warn');
+                const _tip   = (f.issues || []).map(i => (i.sev === 'error' ? '✗ ' : '⚠ ') + i.msg).join('\n');
+                const _badge = _errs.length  ? ` <span style="color:#c62828;font-size:0.85em;" title="${_tip}">⛔</span>`
+                             : _warns.length ? ` <span style="color:#e65100;font-size:0.85em;" title="${_tip}">⚠</span>`
+                             : '';
+                menuHtml += `<button class="sub-btn" id="btn-${f.id}" onclick="switchScope('${f.id}')" title="${f.name}">- ${label}${_badge}</button>`;
             });
             menuHtml += `</div>`;
             return menuHtml;

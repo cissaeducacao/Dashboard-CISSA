@@ -1,3 +1,17 @@
+    function _renderFileIssues(filesToProcess) {
+        const panel = document.getElementById('file-issues');
+        const list  = document.getElementById('file-issues-list');
+        if (!panel || !list) return;
+        // Mostra apenas quando exatamente 1 arquivo está selecionado e ele tem issues
+        if (filesToProcess.length !== 1) { panel.classList.add('hidden'); return; }
+        const issues = filesToProcess[0].issues || [];
+        if (!issues.length) { panel.classList.add('hidden'); return; }
+        list.innerHTML = issues.map(i =>
+            `<li><span style="color:${i.sev === 'error' ? '#c62828' : '#e65100'};font-weight:600;">${i.sev === 'error' ? '✗' : '⚠'}</span> ${i.msg}</li>`
+        ).join('');
+        panel.classList.remove('hidden');
+    }
+
     function renderDashboard() {
         if (uploadedFiles.length === 0) return;
 
@@ -31,35 +45,18 @@
         else if (currentScope.startsWith('sbseg_month_'))         filesToProcess = uploadedFiles.filter(f => f.type === 'sbseg'         && f.monthKey === currentScope.replace('sbseg_month_', ''));
         else filesToProcess = uploadedFiles.filter(f => f.id === currentScope);
 
-        // getSheetData agora é global (definida acima de renderDashboard)
+        _renderFileIssues(filesToProcess);
 
+        // Recorrência: usa _getActivePresenceRows (canônica) para todos os arquivos
         let globalStudentPresence = {};
         uploadedFiles.forEach(fObj => {
-            let pres = getSheetData(fObj.data, [/presen/i, /frequen/i]) || [];
-            pres.forEach(row => {
-                let ids = getIdsFromRow(row), isActive = false;
-                if (fObj.type === 'hands-on') isActive = true;
-                else if (fObj.type === 'cissa-journey') {
-                    const totalPresKey = Object.keys(row).find(k => /total.*presen/i.test(normalize(k)));
-                    if (totalPresKey !== undefined) isActive = parseInt(row[totalPresKey]) > 0;
-                    else isActive = Object.values(row).some(v => ['TRUE','SIM','VERDADEIRO','V','1','X'].includes(String(v).toUpperCase().trim()));
-                }
-                else {
-                    let hasPresenceCol = Object.keys(row).some(k => /presen|dia /i.test(normalize(k)));
-                    if (hasPresenceCol) {
-                        Object.keys(row).forEach(k => {
-                            if (/presen|dia /i.test(normalize(k))) {
-                                if (['TRUE','SIM','VERDADEIRO','V','1','X'].includes(String(row[k]).toUpperCase().trim())) isActive = true;
-                            }
-                        });
-                    } else isActive = true;
-                }
-                if (isActive) {
-                    let mainId = ids.emails[0] || ids.cpfs[0] || ids.baseNomes[0];
-                    if (mainId) {
-                        if (!globalStudentPresence[mainId]) globalStudentPresence[mainId] = new Set();
-                        globalStudentPresence[mainId].add(fObj.id);
-                    }
+            if (fObj.type === 'masterclass') return;
+            _getActivePresenceRows(fObj).forEach(row => {
+                const ids = getIdsFromRow(row);
+                const mainId = ids.emails[0] || ids.cpfs[0] || ids.baseNomes[0];
+                if (mainId) {
+                    if (!globalStudentPresence[mainId]) globalStudentPresence[mainId] = new Set();
+                    globalStudentPresence[mainId].add(fObj.id);
                 }
             });
         });
@@ -77,13 +74,9 @@
                 totalRealizados += mc.partic;
                 return;
             }
-            let insc = getSheetData(data, [/estudantes/, /inscri/, /respostas/, /form/]);
-            // CISSA Lab: always use "DADOS PARTICIPANTES" (DADOS ESTUDANTES is empty/irrelevant)
-            if (pType === 'cissa-lab') insc = getSheetData(data, [/dados.*participante/i]) || getSheetData(data, [/indicad/]) || insc;
-            if (!insc) {
-                 let sortedSheets = Object.keys(data).sort((a,b) => data[b].length - data[a].length);
-                 insc = sortedSheets.length > 0 ? data[sortedSheets[0]] : [];
-            }
+
+            // Aba canônica de inscrições (uniforme entre todos os módulos)
+            let insc = getInscritosSheet(fObj);
             if (insc) {
                 insc.forEach(r => {
                     r._fType = fObj.type;
@@ -91,75 +84,42 @@
                     r._fName = String(fObj.name);
                 });
             }
+
             let pres  = getSheetData(data, [/presen/, /frequen/]) || [];
             let reac  = getSheetData(data, [/reac/, /reaç/, /avaliação de re/, /feedback/, /satisf/]) || [];
-            // Summer Job: substitui inscrições pela lista de indicados
-            //             e agrega TODAS as abas de avaliação (reação + NPS)
             if (pType === 'summer-job') {
-                const indicSheet = getSheetData(data, [/indicad/]);
-                if (indicSheet && indicSheet.length > 0) insc = indicSheet;
-                // Combina todas as abas de avaliação (pode haver reação E nps separadas)
                 reac = [];
                 Object.keys(data).forEach(sheetName => {
                     const nk = normalize(sheetName);
-                    if (/reac|avalia|feedback|satisf|nps/i.test(nk) && !/presen|indicad|certif|mentor|facilit/i.test(nk)) {
+                    if (/reac|avalia|feedback|satisf|nps/i.test(nk) && !/presen|indicad|certif|mentor|facilit/i.test(nk))
                         reac = reac.concat(data[sheetName]);
-                    }
                 });
             }
-            let diag = getSheetData(data, [/diagn/]) || [];
-            let banca = getSheetData(data, [/banca/]) || [];
-
-            let certF = getSheetData(data, [/certificados facilitadores/, /certificados fac/]) || [];
-            let certM = getSheetData(data, [/certificados mentores/, /certificados men/]) || [];
+            const diag  = getSheetData(data, [/diagn/]) || [];
+            const banca = getSheetData(data, [/banca/]) || [];
+            const certF = getSheetData(data, [/certificados facilitadores/, /certificados fac/]) || [];
+            const certM = getSheetData(data, [/certificados mentores/, /certificados men/]) || [];
 
             combinedInscricoes = combinedInscricoes.concat(insc);
-            combinedPresenca = combinedPresenca.concat(pres);
-            combinedReacao = combinedReacao.concat(reac);
-            combinedDiag = combinedDiag.concat(diag);
-            combinedBanca = combinedBanca.concat(banca);
-
+            combinedPresenca   = combinedPresenca.concat(pres);
+            combinedReacao     = combinedReacao.concat(reac);
+            combinedDiag       = combinedDiag.concat(diag);
+            combinedBanca      = combinedBanca.concat(banca);
             if (pType === 'cyberthon') {
                 combinedCertFacil = combinedCertFacil.concat(certF);
-                combinedCertMent = combinedCertMent.concat(certM);
+                combinedCertMent  = combinedCertMent.concat(certM);
             }
 
-            const activeRows = pres;
-
-            activeRows.forEach(row => {
-                let ids = getIdsFromRow(row), isActive = false;
-                if (pType === 'hands-on') isActive = true;
-                else if (pType === 'summer-job') {
-                    const freqKey  = Object.keys(row).find(k => /frequ[eê]ncia|frequencia/i.test(normalize(k)));
-                    const totalKey = Object.keys(row).find(k => /total.*pres|pres.*total/i.test(normalize(k)));
-                    if (freqKey) { const pct = parseFloat(String(row[freqKey]).replace('%','').replace(',','.')); isActive = !isNaN(pct) && pct > 0; }
-                    else if (totalKey) { const t = parseFloat(String(row[totalKey]).replace(',','.')); isActive = !isNaN(t) && t > 0; }
-                    else isActive = true;
-                }
-                else if (pType === 'cissa-journey') {
-                    const totalPresKey = Object.keys(row).find(k => /total.*presen/i.test(normalize(k)));
-                    if (totalPresKey !== undefined) isActive = parseInt(row[totalPresKey]) > 0;
-                    else isActive = Object.values(row).some(v => ['TRUE','SIM','VERDADEIRO','V','1','X'].includes(String(v).toUpperCase().trim()));
-                }
-                else {
-                    let hasPresenceCol = Object.keys(row).some(k => /presen|dia /i.test(normalize(k)));
-                    if (hasPresenceCol) {
-                        Object.keys(row).forEach(k => {
-                            if (/presen|dia /i.test(normalize(k))) {
-                                if (['TRUE','SIM','VERDADEIRO','V','1','X'].includes(String(row[k]).toUpperCase().trim())) isActive = true;
-                            }
-                        });
-                    } else isActive = true;
-                }
-
-                if (isActive && (ids.cpfs.length || ids.emails.length || ids.nomes.length || ids.baseNomes.length)) {
+            // Contagem canônica de participantes (mesma lógica do funil e da Base de Inscritos)
+            _getActivePresenceRows(fObj).forEach(row => {
+                const ids = getIdsFromRow(row);
+                if (ids.cpfs.length || ids.emails.length || ids.nomes.length || ids.baseNomes.length) {
                     totalRealizados++;
                     ids.cpfs.forEach(c => totalAtivosCPFs.add(c));
                     ids.emails.forEach(e => totalAtivosEmails.add(e));
                     ids.nomes.forEach(n => totalAtivosNomes.add(n));
                     ids.baseNomes.forEach(bn => totalAtivosBase.add(bn));
-
-                    let mainId = ids.emails[0] || ids.cpfs[0] || ids.baseNomes[0];
+                    const mainId = ids.emails[0] || ids.cpfs[0] || ids.baseNomes[0];
                     if (mainId) currentViewStudents.add(mainId);
                 }
             });
@@ -198,7 +158,7 @@
 
         filesToProcess.forEach(fObj => {
             let pType = fObj.type;
-            let insc = getSheetData(fObj.data, [/estudantes/, /inscri/, /respostas/, /form/]) || [];
+            let insc = getInscritosSheet(fObj);
             let pres = getSheetData(fObj.data, [/presen/]) || [];
             let certF = getSheetData(fObj.data, [/certificados facilitadores/, /certificados fac/]) || [];
             let certM = getSheetData(fObj.data, [/certificados mentores/, /certificados men/]) || [];

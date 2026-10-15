@@ -68,6 +68,10 @@
             <button class="tab-btn hidden" id="tab-mc-perm" onclick="switchView('mc-perm')">Permanência</button>
             <button class="tab-btn hidden" id="tab-mc-cert" onclick="switchView('mc-cert')">Certificação</button>
         </div>
+        <div id="file-issues" class="hidden" style="background:rgba(198,40,40,0.08);border:1px solid #c62828;border-radius:8px;padding:12px 16px;margin-bottom:16px;font-size:0.83rem;line-height:1.6;">
+            <strong style="color:#c62828;">⛔ Problema no arquivo — verifique o template</strong>
+            <ul id="file-issues-list" style="margin:6px 0 0 18px;padding:0;color:var(--text-main);"></ul>
+        </div>
         <div class="kpi-grid" id="kpi-grid">
             <div class="kpi-card" style="grid-column: span 3;"><span>Status</span><div style="font-size: 1.1rem; color: var(--text-muted);">Carregando dados…</div></div>
         </div>
@@ -95,7 +99,10 @@
                 <div class="chart-card full-width"><h3>Funil de Participação por Edição</h3><div id="funnel-type-filters" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;"></div><div id="funnel-scroll-outer" style="overflow-x:hidden;overflow-y:auto;max-height:520px;min-height:120px;"><div id="funnel-scroll-inner" style="position:relative;width:100%;"><canvas id="c-engage-funnel"></canvas></div></div></div>
                 <div class="chart-card" style="height:380px;"><h3>Certificados por Programa</h3><div class="canvas-wrapper"><canvas id="c-engage-certs"></canvas></div></div>
                 <div id="card-daily-presence" class="chart-card full-width hidden" style="height:420px;">
-                    <h3>Presença por Dia</h3>
+                    <div style="display:flex;align-items:baseline;gap:16px;margin-bottom:4px;">
+                        <h3 style="margin:0;">Presença por Dia</h3>
+                        <span id="daily-presence-mean" style="font-size:0.82rem;color:var(--text-muted);"></span>
+                    </div>
                     <div style="flex:1;overflow-x:auto;overflow-y:hidden;min-height:0;">
                         <div id="daily-presence-scroll" style="position:relative;height:100%;min-width:100%;">
                             <canvas id="c-daily-presence"></canvas>
@@ -326,6 +333,14 @@
                             <option value="">Todos os Meses</option>
                         </select>
                     </div>
+                    <div style="display:flex;flex-direction:column;gap:4px;">
+                        <label style="font-size:0.75rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.04em;">Participação</label>
+                        <select id="inscritos-filter-part" onchange="_applyInscritosFilters()" style="padding:6px 10px;border:1px solid var(--border);border-radius:6px;background:var(--card);color:var(--text-main);font-family:'DM Sans',sans-serif;font-size:0.88rem;">
+                            <option value="">Todos</option>
+                            <option value="Sim">Participou</option>
+                            <option value="Não">Não participou</option>
+                        </select>
+                    </div>
                     <div style="display:flex;gap:8px;margin-left:auto;align-self:flex-end;">
                         <button onclick="exportInscritosCSV()" style="padding:6px 14px;border:1.5px solid var(--blue-dark);border-radius:6px;background:var(--blue-dark);color:#fff;font-family:'DM Sans',sans-serif;font-size:0.88rem;font-weight:600;cursor:pointer;">↓ Exportar CSV</button>
                         <button id="inscritos-copy-emails-btn" onclick="copyInscritosEmails()" style="padding:6px 14px;border:1.5px solid var(--border);border-radius:6px;background:var(--card);color:var(--text-main);font-family:'DM Sans',sans-serif;font-size:0.88rem;font-weight:600;cursor:pointer;">Copiar E-mails</button>
@@ -351,6 +366,7 @@
                                     <th style="position:sticky;top:0;z-index:2;background:var(--card);padding:8px 10px;text-align:left;box-shadow:0 2px 0 var(--border);white-space:nowrap;">Tipo PCD</th>
                                     <th style="position:sticky;top:0;z-index:2;background:var(--card);padding:8px 10px;text-align:left;box-shadow:0 2px 0 var(--border);white-space:nowrap;">Projeto</th>
                                     <th style="position:sticky;top:0;z-index:2;background:var(--card);padding:8px 10px;text-align:left;box-shadow:0 2px 0 var(--border);white-space:nowrap;min-width:160px;">Edição</th>
+                                    <th style="position:sticky;top:0;z-index:2;background:var(--card);padding:8px 10px;text-align:center;box-shadow:0 2px 0 var(--border);white-space:nowrap;">Participou</th>
                                 </tr>
                             </thead>
                             <tbody id="inscritos-tbody"></tbody>

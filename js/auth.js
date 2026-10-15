@@ -16,24 +16,41 @@
     }
 
     // ── Apps Script Proxy (JSONP — evita CORS) ───────────────────────────────
-    function gasRequest(params) {
+    function gasRequest(params, timeoutMs = 20000) {
         return new Promise((resolve, reject) => {
             const cbName = '_gas_' + Date.now() + '_' + Math.random().toString(36).slice(2);
             const qs = new URLSearchParams({ ...params, token: accessToken, callback: cbName }).toString();
 
             const script = document.createElement('script');
+            let settled = false;
+
+            const cleanup = (noop = false) => {
+                settled = true;
+                // On timeout keep a no-op so a late GAS response doesn't throw ReferenceError
+                if (noop) window[cbName] = () => {};
+                else delete window[cbName];
+                if (script.parentNode) script.parentNode.removeChild(script);
+            };
+
+            const timer = setTimeout(() => {
+                if (settled) return;
+                cleanup(true);
+                reject(new Error('Timeout: o servidor (Apps Script) não respondeu em ' + (timeoutMs/1000) + 's. Verifique se o deploy do GAS está ativo.'));
+            }, timeoutMs);
 
             window[cbName] = (data) => {
-                delete window[cbName];
-                if (script.parentNode) script.parentNode.removeChild(script);
+                if (settled) return;
+                clearTimeout(timer);
+                cleanup();
                 if (data && data.error) reject(new Error(data.error));
                 else resolve(data);
             };
 
             script.onerror = () => {
-                delete window[cbName];
-                if (script.parentNode) script.parentNode.removeChild(script);
-                reject(new Error('Falha ao conectar com o servidor (GAS)'));
+                if (settled) return;
+                clearTimeout(timer);
+                cleanup();
+                reject(new Error('Falha ao conectar com o servidor (GAS). Verifique a URL do deploy.'));
             };
 
             script.src = `${GAS_URL}?${qs}`;
@@ -66,14 +83,18 @@
                 return;
             }
 
-            // 2. Exportar cada arquivo em paralelo
-            await Promise.all(files.map(async ({ id, name }) => {
-                try {
-                    const { data } = await gasRequest({ action: 'export', fileId: id });
-                    const buf = base64ToBuffer(data);
-                    processFileBuffer(buf, name);
-                } catch (err) { console.warn('Erro ao processar arquivo:', name, err); }
-            }));
+            // 2. Exportar arquivos em lotes de 4 (evita sobrecarga de concorrência no GAS)
+            const BATCH = 4;
+            for (let i = 0; i < files.length; i += BATCH) {
+                const batch = files.slice(i, i + BATCH);
+                await Promise.all(batch.map(async ({ id, name }) => {
+                    try {
+                        const { data } = await gasRequest({ action: 'export', fileId: id }, 120000);
+                        const buf = base64ToBuffer(data);
+                        processFileBuffer(buf, name);
+                    } catch (err) { console.warn('Erro ao processar arquivo:', name, err); }
+                }));
+            }
 
             await autoLoadLocalLevantamentos();
             if (uploadedFiles.length > 0) { updateSidebar(); switchScope('all'); }

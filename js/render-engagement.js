@@ -147,14 +147,7 @@
         let presRows = null, dayKeys = [];
 
         // Detecta colunas de dia: "08/04", "DIA 1", "DIA_2", "DIA (08/04)", "Dia 08/04", "D1"
-        const isDateCol = k => {
-            const kt = k.trim();
-            return /^\d{1,2}[\/\-\.]\d{1,2}(\/\d{2,4})?(\s.*)?$/.test(kt)  // "08/04", "08/04/2025", "09/09 (Seg)"
-                || /\bdia[\s_]*[\d\(]/i.test(kt)                              // "DIA 1", "DIA_2", "DIA (08/04)"
-                || /^d\d+$/i.test(kt)                                         // "D1", "D2"
-                || /\bsemana[\s_]*\d/i.test(kt)                               // "Semana 1", "Semana_2"
-                || /\b\d{1,2}[\/\-\.]\d{1,2}(\/\d{2,4})?\b/.test(kt);       // data embutida: "Presença 09/09"
-        };
+        const isDateCol = _isDateCol;
 
         if (fObj.type === 'cissa-journey') {
             const pk = Object.keys(data).find(k => /controle.*presen|presen/i.test(normalize(k)));
@@ -269,6 +262,15 @@
         const multiDay = allDayKeys.length > 1 && !d.singleSession;
         card.classList.remove('hidden');
 
+        const meanEl = document.getElementById('daily-presence-mean');
+        let meanVal = 0;
+        if (allPresent.length > 0) {
+            meanVal = Math.round(allPresent.reduce((a, b) => a + b, 0) / allPresent.length);
+            if (meanEl) meanEl.textContent = `Média: ${meanVal} presentes/dia`;
+        } else {
+            if (meanEl) meanEl.textContent = '';
+        }
+
         const isDark = document.body.classList.contains('dark-mode');
         const textColor = isDark ? '#E8E8E8' : '#232323';
         const gridColor = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)';
@@ -304,6 +306,19 @@
                 fill: true,
                 tension: 0.3,
                 yAxisID: 'y'
+            });
+        }
+        if (allDayKeys.length > 1) {
+            datasets.push({
+                type: 'line',
+                label: `Média (${meanVal})`,
+                data: Array(allDayKeys.length).fill(meanVal),
+                borderColor: '#888888',
+                borderDash: [6, 4],
+                pointRadius: 0,
+                tension: 0,
+                yAxisID: 'y',
+                datalabels: { display: false }
             });
         }
 
@@ -345,12 +360,10 @@
                     : '';
                 title = short + datePart;
             } else if (fObj.type === 'cissa-journey') {
-                // Show only last session date: extract last DD_MM before year
                 const lastDate = title.match(/(\d{1,2})[_\/](\d{2})[_\/](20\d{2})/);
                 if (lastDate) {
                     title = 'CISSA Journey ' + lastDate[1].padStart(2,'0') + '/' + lastDate[2];
                 } else {
-                    // Fallback: last DD_MM in name
                     const allD = [...title.matchAll(/\b(\d{1,2})[_](\d{2})\b/g)].filter(m => +m[2] >= 1 && +m[2] <= 12);
                     if (allD.length) {
                         const last = allD[allD.length - 1];
@@ -362,39 +375,29 @@
             fullLabels.push(fullTitle);
             bgColors.push('#375B95');
 
-            // ── Mulheres: tudo vem da aba de participantes/certificados ────────
+            // ── Mulheres: inscrições = participações = certificados (CPFs únicos na aba de cert)
             if (fObj.type === 'mulheres') {
-                const mulhSheet = getSheetData(fObj.data, [/participante.*certif|certif.*participante|participante|certifi/]) || [];
-                const cpfSetM = new Set();
-                mulhSheet.forEach(row => {
-                    const cpfKey = Object.keys(row).find(k => /cpf/i.test(normalize(k)));
-                    if (cpfKey && row[cpfKey] && String(row[cpfKey]).trim() !== '')
-                        cpfSetM.add(String(row[cpfKey]).replace(/\D/g, '').trim());
-                });
-                const n = cpfSetM.size;
-                inscritos.push(n);
-                participacoes.push(n);
-                certificados.push(n);
-                return; // pula detecção genérica abaixo
+                const n = getParticipantCount(fObj);
+                inscritos.push(n); participacoes.push(n); certificados.push(n);
+                return;
             }
 
-            // Inscrições: busca aba de estudantes/alunos — exclui abas auxiliares
-            const inscSheet = getSheetData(fObj.data, [/estudantes/, /alunos/, /inscri/, /respostas/, /^form/])
-                           || Object.entries(fObj.data)
-                                .filter(([k, v]) => Array.isArray(v) && v.length > 1
-                                    && !/banca|presen|certif|mentor|facilit|reac|avalia|diagn|espera|indicad|pitch|script|autocrat/i.test(normalize(k)))
-                                .sort(([,a],[,b]) => b.length - a.length)
-                                .map(([,v]) => v)[0]
-                           || [];
-            inscritos.push(inscSheet.length);
+            // ── Masterclass: tudo via getMasterclassMetrics ────────────────────
+            if (fObj.type === 'masterclass') {
+                const mc = getMasterclassMetrics(fObj);
+                inscritos.push(mc.insc); participacoes.push(mc.partic); certificados.push(mc.certs);
+                return;
+            }
 
-            const pres = Object.keys(fObj.data).find(k => /presen/i.test(k));
-            const presData = pres ? fObj.data[pres] : [];
+            // Inscrições e participações: funções canônicas (mesmas do dashboard e da Base de Inscritos)
+            inscritos.push(getInscritosSheet(fObj).length);
+            participacoes.push(getParticipantCount(fObj));
 
-            let ativos = 0, certs = 0;
+            // Certificados: lógica específica por tipo (emissão de links/direitos)
+            const presKey = Object.keys(fObj.data).find(k => /presen/i.test(k));
+            const presData = presKey ? fObj.data[presKey] : [];
 
-            // Helper: conta certificados via link/url (mesmo critério do KPI)
-            const contarCertsPorLink = (sheets) => {
+            const contarCertsPorLink = sheets => {
                 const certSet = new Set();
                 sheets.forEach(sheet => {
                     (sheet || []).forEach(row => {
@@ -410,89 +413,17 @@
                 return certSet.size;
             };
 
-            if (fObj.type === 'masterclass') {
-                const mc = getMasterclassMetrics(fObj);
-                inscritos[inscritos.length - 1] = mc.insc;
-                ativos = mc.partic;
-                certs = mc.certs;
-            } else if (fObj.type === 'summer-job') {
-                // Inscrições: indicados; Participações: quem tem freq > 0; Certificados: links
-                const indicSheet = getSheetData(fObj.data, [/indicad/]) || [];
-                inscritos[inscritos.length - 1] = indicSheet.length;
-                ativos = presData.filter(r => {
-                    const fk = Object.keys(r).find(k => /frequ[eê]ncia|frequencia/i.test(normalize(k)));
-                    const tk = Object.keys(r).find(k => /total.*pres|pres.*total/i.test(normalize(k)));
-                    if (fk) { const p = parseFloat(String(r[fk]).replace('%','').replace(',','.')); return !isNaN(p) && p > 0; }
-                    if (tk) { const t = parseFloat(String(r[tk]).replace(',','.')); return !isNaN(t) && t > 0; }
-                    return true;
-                }).length;
-                certs  = contarCertsPorLink([presData]);
-            } else if (fObj.type === 'cissa-lab') {
-                const PRESENCA_VALS = new Set(['TRUE','SIM','VERDADEIRO','V','1','X','S']);
-                presData.forEach(r => {
-                    const presKey = Object.keys(r).find(k => /presenca|presen/i.test(normalize(k)) && !/certif/i.test(normalize(k)));
-                    if (presKey && PRESENCA_VALS.has(String(r[presKey]).toUpperCase().trim())) ativos++;
-                });
-                if (!ativos) ativos = presData.length;
-                certs = contarCertsPorLink([presData]);
-                // Inscricoes: DADOS PARTICIPANTES ou INDICADOS
-                const inscLabSheet = getSheetData(fObj.data, [/dados.*participante/i]) || getSheetData(fObj.data, [/indicad/i]) || [];
-                inscritos[inscritos.length - 1] = inscLabSheet.length || presData.length;
-            } else if (fObj.type === 'cissa-journey') {
-                // Inscrições: Lista de Inscritos
-                const inscJSheet = getSheetData(fObj.data, [/inscri/]) || [];
-                inscritos[inscritos.length - 1] = inscJSheet.length;
-                // Participações: TOTAL DE PRESENÇA > 0
-                presData.forEach(r => {
-                    const totalPresKey = Object.keys(r).find(k => /total.*presen/i.test(normalize(k)));
-                    if (totalPresKey !== undefined && parseInt(r[totalPresKey]) > 0) ativos++;
-                });
-                if (!ativos) ativos = presData.filter(r => Object.values(r).some(v => ['TRUE','SIM','VERDADEIRO','V','1','X'].includes(String(v).toUpperCase().trim()))).length;
-                // Certificados: DIREITO A CERTIFICADO? = Sim
+            let certs = 0;
+            if (fObj.type === 'cissa-journey') {
                 presData.forEach(r => {
                     const dirKey = Object.keys(r).find(k => /direito.*certif/i.test(normalize(k)));
-                    if (dirKey && /sim/i.test(String(r[dirKey]||''))) certs++;
+                    if (dirKey && /sim/i.test(String(r[dirKey] || ''))) certs++;
                 });
-            } else if (fObj.type === 'sbseg') {
-                // Inscrições: DADOS INSCRITOS
-                const inscSbseg = getSheetData(fObj.data, [/dados.*inscrit/i]) || getSheetData(fObj.data, [/inscrit/i]) || [];
-                inscritos[inscritos.length - 1] = inscSbseg.length || presData.length;
-                // Participações: coluna "Presença" = true
-                const PRES_VALS_SBG = new Set(['TRUE','SIM','VERDADEIRO','V','1','X','S']);
-                presData.forEach(r => {
-                    const pk = Object.keys(r).find(k => /presenca|presen/i.test(normalize(k)) && !/certif/i.test(normalize(k)));
-                    if (pk && PRES_VALS_SBG.has(String(r[pk]).toUpperCase().trim())) ativos++;
-                });
-                if (!ativos) ativos = presData.length;
-                certs = contarCertsPorLink([presData]);
-            } else if (fObj.type === 'hands-on') {
-                ativos = presData.length;
-                // Certificados: links na lista de presença (coluna ao lado)
-                certs = contarCertsPorLink([presData]);
+            } else if (fObj.type === 'cyberthon') {
+                certs = Math.min(contarCertsPorLink([presData]), participacoes[participacoes.length - 1]);
             } else {
-                // Cyberthon: conta quem tem ao menos 1 dia de presença marcado
-                const PRESENCA_VALS = new Set(['TRUE','SIM','VERDADEIRO','V','1','X','S']);
-                const isPresCol = k => {
-                    const nk = normalize(k);
-                    // "PRESENÇA", "DIA 1", "DIA 08/04", "DIA1", "08/04", "09/04" …
-                    return /presen|compare/i.test(nk)
-                        || /\bdia\b/i.test(nk)
-                        || /^\d{1,2}[\/\-\.]\d{1,2}/.test(k.trim());
-                };
-                presData.forEach(r => {
-                    if (Object.keys(r).some(k =>
-                        isPresCol(k) && PRESENCA_VALS.has(String(r[k]).toUpperCase().trim())))
-                        ativos++;
-                });
-                // Fallback só se a aba não tiver nenhuma coluna de controle de presença
-                if (ativos === 0 && !presData.some(r => Object.keys(r).some(isPresCol))) {
-                    ativos = presData.length;
-                }
-                // Certificados: links na lista de presença, cap em ativos
-                certs = Math.min(contarCertsPorLink([presData]), ativos);
+                certs = contarCertsPorLink([presData]);
             }
-
-            participacoes.push(ativos);
             certificados.push(certs);
         });
 
