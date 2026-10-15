@@ -83,7 +83,7 @@
                 return;
             }
 
-            // 2. Exportar arquivos em lotes de 4 (evita sobrecarga de concorrência no GAS)
+            // 2. Exportar arquivos via GAS proxy em lotes de 4
             const BATCH = 4;
             for (let i = 0; i < files.length; i += BATCH) {
                 const batch = files.slice(i, i + BATCH);
